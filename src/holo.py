@@ -9,7 +9,7 @@ from logging.handlers import TimedRotatingFileHandler
 from time import time
 from data import database
 from typing import Type
-import config as config_loader
+from config import Config, InvalidConfigException
 import services
 
 if sys.version_info[0] != 3 or sys.version_info[1] < 10:
@@ -36,7 +36,7 @@ class ParserArguments:
 
 
 # Do the things
-def main(config: config_loader.Config, args: Type[ParserArguments]) -> None:
+def main(config: Config, args: Type[ParserArguments]) -> None:
 
 	# Set things up
 	db = database.living_in(config.database)
@@ -173,26 +173,27 @@ if __name__ == "__main__":
 	config_file = (
 		os.environ["HOLO_CONFIG"] if "HOLO_CONFIG" in os.environ else args.config_file
 	)
-	c = config_loader.from_file(config_file)
-	if c is None:
+	try:
+		config = Config.from_file(config_file)
+	except InvalidConfigException:
 		print("Cannot start without a valid configuration file")
 		sys.exit(2)
 
 	# Override config with args
-	c.debug |= args.debug
-	c.module = args.module
-	c.log_dir = args.log_dir
+	config.debug |= args.debug
+	config.module = args.module
+	config.log_dir = args.log_dir
 	if args.db_name is not None:
-		c.database = args.db_name
+		config.database = args.db_name
 	if args.subreddit is not None:
-		c.subreddit = args.subreddit
+		config.subreddit = args.subreddit
 
 	# Start
 	use_log = args.no_input
 	if use_log:
-		os.makedirs(c.log_dir, exist_ok=True)
+		os.makedirs(config.log_dir, exist_ok=True)
 
-		log_file = f"{c.log_dir}/holo_{c.module}.log"
+		log_file = f"{config.log_dir}/holo_{config.module}.log"
 		logging.basicConfig(
 			handlers=[
 				TimedRotatingFileHandler(
@@ -201,12 +202,12 @@ if __name__ == "__main__":
 			],
 			format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
 			datefmt="%Y-%m-%d %H:%M:%S",
-			level=logging.DEBUG if c.debug else logging.INFO,
+			level=logging.DEBUG if config.debug else logging.INFO,
 		)
 	else:
 		logging.basicConfig(
 			format="%(levelname)s | %(message)s",
-			level=logging.DEBUG if c.debug else logging.INFO,
+			level=logging.DEBUG if config.debug else logging.INFO,
 		)
 	logging.getLogger("requests").setLevel(logging.WARNING)
 	logging.getLogger("praw-script-oauth").setLevel(logging.WARNING)
@@ -214,13 +215,13 @@ if __name__ == "__main__":
 	if use_log:
 		logging.info("-" * 60)
 
-	if err := config_loader.validate(c):
-		logging.warning("Configuration state invalid: %s", err)
+	if not config.is_valid:
+		logging.warning("Configuration state invalid")
 
-	if c.debug:
+	if config.debug:
 		logging.info("DEBUG MODE ENABLED")
 	start_time = time()
-	main(config=c, args=args)
+	main(config=config, args=args)
 	end_time = time()
 
 	time_diff = end_time - start_time

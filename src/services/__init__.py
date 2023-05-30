@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Iterable, Protocol
 _service_configs = None
 
 class Config(Protocol):
-	services: dict[str,str]
+	services: dict[str, dict[str, str]]
 
 def setup_services(config: Config):
 	global _service_configs

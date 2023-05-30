@@ -10,16 +10,11 @@ class ShowType(enum.Enum):
 	OVA = 3
 
 
-def str_to_showtype(string):
-	if string is not None:
-		string = string.lower()
-		if string == "tv":
-			return ShowType.TV
-		if string == "movie":
-			return ShowType.MOVIE
-		if string == "ova":
-			return ShowType.OVA
-	return ShowType.UNKNOWN
+def str_to_showtype(string: str) -> ShowType:
+	try:
+		return ShowType[string.strip().upper()]
+	except KeyError:
+		return ShowType.UNKNOWN
 
 
 class DbEqMixin:
