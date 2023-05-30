@@ -4,9 +4,10 @@ from datetime import date, timedelta
 import services
 from data.models import Stream
 import reddit
+from config import Config
+from data.database import DatabaseDatabase
 
-
-def main(config, db, **kwargs):
+def main(config: Config, db: DatabaseDatabase):
 	reddit.init_reddit(config)
 
 	has_new_episode = []

@@ -11,8 +11,10 @@ from module_find_episodes import (
 	_format_post_text,
 )
 
+from config import Config
+from data.database import DatabaseDatabase
 
-def main(config, db, show_name, episode_count):
+def main(config: Config, db: DatabaseDatabase, show_name: str, episode_count: str) -> None:
 	int_episode_count = int(episode_count)
 	reddit.init_reddit(config)
 

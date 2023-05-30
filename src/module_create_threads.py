@@ -6,9 +6,10 @@ from data.models import Stream, Episode
 import reddit
 
 from module_find_episodes import _create_reddit_post, _edit_reddit_post
+from config import Config
+from data.database import DatabaseDatabase
 
-
-def main(config, db, show_name, episode):
+def main(config: Config, db: DatabaseDatabase, show_name: str, episode: str) -> bool:
 	int_episode = Episode(int(episode), None, None, None)
 	reddit.init_reddit(config)
 

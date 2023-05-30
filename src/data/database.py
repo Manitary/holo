@@ -1,9 +1,11 @@
+from __future__ import annotations
 from logging import debug, error, exception
 import sqlite3, re
 from functools import wraps, lru_cache
 from unidecode import unidecode
 from typing import Set, List, Optional
 from datetime import datetime, timezone
+from services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
 
 from .models import (
 	Show,
@@ -21,13 +23,14 @@ from .models import (
 	Poll,
 )
 
-
-def living_in(the_database):
+def living_in(the_database: str | None) -> DatabaseDatabase | None:
 	"""
 	wow wow
 	:param the_database:
 	:return:
 	"""
+	if the_database is None:
+		raise ValueError("No database assigned")
 	try:
 		db = sqlite3.connect(the_database)
 		db.execute("PRAGMA foreign_keys=ON")
@@ -234,7 +237,7 @@ class DatabaseDatabase:
 
 		self.commit()
 
-	def register_services(self, services):
+	def register_services(self, services: dict[str, AbstractServiceHandler]) -> None:
 		self.q.execute("UPDATE Services SET enabled = 0")
 		for service_key in services:
 			service = services[service_key]
@@ -248,7 +251,7 @@ class DatabaseDatabase:
 			)
 		self.commit()
 
-	def register_link_sites(self, sites):
+	def register_link_sites(self, sites: dict[str, AbstractInfoHandler]) -> None:
 		self.q.execute("UPDATE LinkSites SET enabled = 0")
 		for site_key in sites:
 			site = sites[site_key]
@@ -262,7 +265,7 @@ class DatabaseDatabase:
 			)
 		self.commit()
 
-	def register_poll_sites(self, polls):
+	def register_poll_sites(self, polls: dict[str, AbstractPollHandler]) -> None:
 		for poll_key in polls:
 			poll = polls[poll_key]
 			self.q.execute(

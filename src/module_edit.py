@@ -2,11 +2,11 @@ from logging import debug, info, warning, error, exception
 
 import services
 from data.models import UnprocessedShow, UnprocessedStream, ShowType, str_to_showtype
+from data.database import DatabaseDatabase
 
-
-def main(config, db, *args, **kwargs):
-	if len(args) == 1:
-		if _edit_with_file(db, args[0]):
+def main(db: DatabaseDatabase, edit_file: str) -> None:
+	if edit_file:
+		if _edit_with_file(db=db, edit_file=edit_file):
 			info("Edit successful; saving")
 			db.commit()
 		else:
@@ -16,7 +16,7 @@ def main(config, db, *args, **kwargs):
 		warning("Nothing to do")
 
 
-def _edit_with_file(db, edit_file):
+def _edit_with_file(db: DatabaseDatabase, edit_file: str):
 	import yaml
 
 	info('Parsing show edit file "{}"'.format(edit_file))

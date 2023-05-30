@@ -2,9 +2,11 @@ from logging import debug, info, warning, error
 from datetime import datetime, timedelta
 
 import services
+from config import Config
+from data.database import DatabaseDatabase
 
 
-def main(config, db, **kwargs):
+def main(config: Config, db: DatabaseDatabase) -> None:
 	# Find data not provided by the edit module
 	_check_missing_stream_info(config, db, update_db=not config.debug)
 	# Check for new show scores

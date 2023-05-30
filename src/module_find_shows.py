@@ -2,10 +2,11 @@ from logging import debug, info, warning, error
 
 import services
 from data.models import ShowType
+from config import Config
+from data.database import DatabaseDatabase
 
-
-def main(config, db, output_yaml, output_file=None, **kwargs):
-	if output_yaml and output_file:
+def main(config: Config, db: DatabaseDatabase, output_file: str = "") -> None:
+	if output_file:
 		debug("Using output file: {}".format(output_file))
 		create_season_config(config, db, output_file)
 	# check_new_shows(config, db, update_db=not config.debug)

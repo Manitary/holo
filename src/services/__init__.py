@@ -1,14 +1,15 @@
 from logging import debug, warning, error
 from abc import abstractmethod, ABC
 from types import ModuleType
-from typing import List, Dict, Optional, Iterable
-
+from typing import List, Dict, Optional, Iterable, Protocol
 # Common
 
 _service_configs = None
 
+class Config(Protocol):
+	services: dict[str,str]
 
-def setup_services(config):
+def setup_services(config: Config):
 	global _service_configs
 	_service_configs = config.services
 
@@ -275,18 +276,18 @@ class AbstractServiceHandler(ABC, Requestable):
 
 # Services
 
-_services = dict()
+_services: dict[str, AbstractServiceHandler] = {}
 
 
 def _ensure_service_handlers():
 	global _services
-	if _services is None or len(_services) == 0:
+	if not _services:
 		from . import stream
 
 		_services = import_all_services(stream, "ServiceHandler")
 
 
-def get_service_handlers() -> Dict[str, AbstractServiceHandler]:
+def get_service_handlers() -> dict[str, AbstractServiceHandler]:
 	"""
 	Creates an instance of every service in the services module and returns a mapping to their keys.
 	:return: A dict of service keys to an instance of the service
@@ -417,7 +418,7 @@ class AbstractInfoHandler(ABC, Requestable):
 
 # Link sites
 
-_link_sites = dict()
+_link_sites: dict[str, AbstractInfoHandler] = {}
 
 
 def _ensure_link_handlers():

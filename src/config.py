@@ -11,12 +11,12 @@ class WhitespaceFriendlyConfigParser(configparser.ConfigParser):
 class Config:
 	def __init__(self):
 		self.debug = False
-		self.module = None
-		self.database = None
+		self.module: str | None = None
+		self.database: str | None = None
 		self.useragent = None
 		self.ratelimit = 1.0
 
-		self.subreddit = None
+		self.subreddit: str|None = None
 		self.r_username = None
 		self.r_password = None
 		self.r_oauth_key = None
@@ -42,8 +42,10 @@ class Config:
 		self.batch_thread_post_body = None
 		self.post_formats = dict()
 
+		self.log_dir: str | None = None
 
-def from_file(file_path):
+
+def from_file(file_path: str):
 	if file_path.find(".") < 0:
 		file_path += ".ini"
 
@@ -118,9 +120,9 @@ def from_file(file_path):
 	return config
 
 
-def validate(config):
-	def is_bad_str(s):
-		return s is None or len(s) == 0
+def validate(config: Config) -> str | bool:
+	def is_bad_str(string: str | None) -> bool:
+		return string is None or len(string) == 0
 
 	if is_bad_str(config.database):
 		return "database missing"
