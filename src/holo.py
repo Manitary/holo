@@ -200,7 +200,7 @@ if __name__ == "__main__":
 					log_file, when="midnight", backupCount=7, encoding="UTF-8"
 				)
 			],
-			format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+			format="%(asctime)s | %(module)s | %(levelname)s | %(message)s",
 			datefmt="%Y-%m-%d %H:%M:%S",
 			level=logging.DEBUG if config.debug else logging.INFO,
 		)
