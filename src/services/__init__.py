@@ -7,34 +7,45 @@ from typing import List, Dict, Optional, Iterable
 
 _service_configs = None
 
+
 def setup_services(config):
 	global _service_configs
 	_service_configs = config.services
+
 
 def _get_service_config(key):
 	if key in _service_configs:
 		return _service_configs[key]
 	return dict()
 
+
 def _make_service(service):
 	service.set_config(_get_service_config(service.key))
 	return service
 
+
 # Utilities
+
 
 def import_all_services(pkg: ModuleType, class_name: str):
 	import importlib
+
 	services = dict()
 	for name in pkg.__all__:
-		module = importlib.import_module("."+name, package=pkg.__name__)
+		module = importlib.import_module("." + name, package=pkg.__name__)
 		if hasattr(module, class_name):
 			handler = getattr(module, class_name)()
 			services[handler.key] = _make_service(handler)
 		else:
-			warning("Service module {}.{} has no handler {}".format(pkg.__name__, name, class_name))
+			warning(
+				"Service module {}.{} has no handler {}".format(
+					pkg.__name__, name, class_name
+				)
+			)
 		del module
 	del importlib
 	return services
+
 
 ##############
 # Requesting #
@@ -48,9 +59,10 @@ from xml.etree import ElementTree as xml_parser
 from bs4 import BeautifulSoup
 import feedparser
 
+
 def rate_limit(wait_length):
 	last_time = 0
-	
+
 	def decorate(f):
 		@wraps(f)
 		def rate_limited(*args, **kwargs):
@@ -58,19 +70,33 @@ def rate_limit(wait_length):
 			diff = perf_counter() - last_time
 			if diff < wait_length:
 				sleep(wait_length - diff)
-			
+
 			r = f(*args, **kwargs)
 			last_time = perf_counter()
 			return r
+
 		return rate_limited
+
 	return decorate
+
 
 class Requestable:
 	rate_limit_wait = 1
-	
+
 	@lru_cache(maxsize=100)
 	@rate_limit(rate_limit_wait)
-	def request(self, url, json=False, xml=False, html=False, rss=False, proxy=None, useragent=None, auth=None, timeout=10):
+	def request(
+		self,
+		url,
+		json=False,
+		xml=False,
+		html=False,
+		rss=False,
+		proxy=None,
+		useragent=None,
+		auth=None,
+		timeout=10,
+	):
 		"""
 		Sends a request to the service.
 		:param url: The request URL
@@ -90,24 +116,30 @@ class Requestable:
 			else:
 				proxy = {"http": "http://{}:{}".format(*proxy)}
 				debug("Using proxy: {}", proxy)
-		
+
 		headers = {"User-Agent": useragent}
 		debug("Sending request")
 		debug("  URL={}".format(url))
 		debug("  Headers={}".format(headers))
 		try:
-			response = requests.get(url, headers=headers, proxies=proxy, auth=auth, timeout=timeout)
+			response = requests.get(
+				url, headers=headers, proxies=proxy, auth=auth, timeout=timeout
+			)
 		except requests.exceptions.Timeout:
 			error("  Response timed out")
 			return None
 		debug("  Status code: {}".format(response.status_code))
-		if not response.ok or response.status_code == 204:		# 204 is a special case for MAL errors
+		if (
+			not response.ok or response.status_code == 204
+		):  # 204 is a special case for MAL errors
 			error("Response {}: {}".format(response.status_code, response.reason))
 			return None
-		if len(response.text) == 0:		# Some sites *coughfunimationcough* may return successful empty responses for new shows
+		if (
+			len(response.text) == 0
+		):  # Some sites *coughfunimationcough* may return successful empty responses for new shows
 			error("Empty response (probably funimation)")
 			return None
-		
+
 		if json:
 			debug("Response returning as JSON")
 			try:
@@ -117,13 +149,13 @@ class Requestable:
 				return None
 		if xml:
 			debug("Response returning as XML")
-			#TODO: error checking
+			# TODO: error checking
 			raw_entry = xml_parser.fromstring(response.text)
-			#entry = dict((attr.tag, attr.text) for attr in raw_entry)
+			# entry = dict((attr.tag, attr.text) for attr in raw_entry)
 			return raw_entry
 		if html:
 			debug("Returning response as HTML")
-			soup = BeautifulSoup(response.text, 'html.parser')
+			soup = BeautifulSoup(response.text, "html.parser")
 			return soup
 		if rss:
 			debug("Returning response as RSS feed")
@@ -132,6 +164,7 @@ class Requestable:
 		debug("Response returning as text")
 		return response.text
 
+
 ###################
 # Service handler #
 ###################
@@ -139,16 +172,17 @@ class Requestable:
 from datetime import datetime
 from data.models import Episode, Stream, UnprocessedStream
 
+
 class AbstractServiceHandler(ABC, Requestable):
 	def __init__(self, key, name, is_generic):
 		self.key = key
 		self.name = name
 		self.config = None
 		self.is_generic = is_generic
-	
+
 	def set_config(self, config):
 		self.config = config
-	
+
 	def get_latest_episode(self, stream: Stream, **kwargs) -> Optional[Episode]:
 		"""
 		Gets information on the latest episode for this service.
@@ -158,7 +192,7 @@ class AbstractServiceHandler(ABC, Requestable):
 		"""
 		episodes = self.get_published_episodes(stream, **kwargs)
 		return max(episodes, key=lambda e: e.number, default=None)
-	
+
 	def get_published_episodes(self, stream: Stream, **kwargs) -> Iterable[Episode]:
 		"""
 		Gets all possible live episodes for a given stream. Not all older episodes are
@@ -168,9 +202,13 @@ class AbstractServiceHandler(ABC, Requestable):
 		:return: An iterable of live episodes
 		"""
 		episodes = self.get_all_episodes(stream, **kwargs)
-		today = datetime.utcnow().date()							#NOTE: Uses local time instead of UTC, but probably doesn't matter too much on a day scale
-		return filter(lambda e: e.date.date() <= today, episodes)	# Update 9/14/16: It actually matters.
-	
+		today = (
+			datetime.utcnow().date()
+		)  # NOTE: Uses local time instead of UTC, but probably doesn't matter too much on a day scale
+		return filter(
+			lambda e: e.date.date() <= today, episodes
+		)  # Update 9/14/16: It actually matters.
+
 	@abstractmethod
 	def get_all_episodes(self, stream: Stream, **kwargs) -> Iterable[Episode]:
 		"""
@@ -182,7 +220,9 @@ class AbstractServiceHandler(ABC, Requestable):
 		"""
 		return list()
 
-	def get_recent_episodes(self, streams: Iterable[Stream], **kwargs) -> Dict[Stream, Iterable[Episode]]:
+	def get_recent_episodes(
+		self, streams: Iterable[Stream], **kwargs
+	) -> Dict[Stream, Iterable[Episode]]:
 		"""
 		Gets all recently released episode on the service, for the given streams.
 		What counts as recent is decided by the service handler, but all newly released episodes
@@ -191,10 +231,10 @@ class AbstractServiceHandler(ABC, Requestable):
 		:param streams: The streams for which new episodes must be returned.
 		:param kwargs: Arguments passed to the request, such as proxy and authentication
 		:return: A dict in which each key is one of the requested streams
-			 and the value is a list of newly released episodes for the stream
+				 and the value is a list of newly released episodes for the stream
 		"""
 		return {stream: self.get_all_episodes(stream, **kwargs) for stream in streams}
-	
+
 	@abstractmethod
 	def get_stream_link(self, stream: Stream) -> Optional[str]:
 		"""
@@ -203,18 +243,18 @@ class AbstractServiceHandler(ABC, Requestable):
 		:return: A URL to the stream's page
 		"""
 		return None
-	
+
 	@abstractmethod
 	def extract_show_key(self, url: str) -> Optional[str]:
 		"""
 		Extracts a show's key from its URL.
 		For example, "myriad-colors-phantom-world" is extracted from the Crunchyroll URL
-			http://www.crunchyroll.com/myriad-colors-phantom-world.rss
-		:param url: 
+				http://www.crunchyroll.com/myriad-colors-phantom-world.rss
+		:param url:
 		:return: The show's service key
 		"""
 		return None
-	
+
 	@abstractmethod
 	def get_stream_info(self, stream: Stream, **kwargs) -> Optional[Stream]:
 		"""
@@ -222,7 +262,7 @@ class AbstractServiceHandler(ABC, Requestable):
 		:param stream: The stream being checked
 		:return: An updated stream object if successful, otherwise None"""
 		return None
-	
+
 	@abstractmethod
 	def get_seasonal_streams(self, **kwargs) -> List[UnprocessedStream]:
 		"""
@@ -232,15 +272,19 @@ class AbstractServiceHandler(ABC, Requestable):
 		"""
 		return list()
 
+
 # Services
 
 _services = dict()
+
 
 def _ensure_service_handlers():
 	global _services
 	if _services is None or len(_services) == 0:
 		from . import stream
+
 		_services = import_all_services(stream, "ServiceHandler")
+
 
 def get_service_handlers() -> Dict[str, AbstractServiceHandler]:
 	"""
@@ -250,7 +294,10 @@ def get_service_handlers() -> Dict[str, AbstractServiceHandler]:
 	_ensure_service_handlers()
 	return _services
 
-def get_service_handler(service=None, key:str=None) -> Optional[AbstractServiceHandler]:
+
+def get_service_handler(
+	service=None, key: str = None
+) -> Optional[AbstractServiceHandler]:
 	"""
 	Returns an instance of a service handler representing the given service or service key.
 	:param service: A service
@@ -264,13 +311,21 @@ def get_service_handler(service=None, key:str=None) -> Optional[AbstractServiceH
 		return _services[key]
 	return None
 
+
 @lru_cache(maxsize=1)
-def get_genereic_service_handlers(services=None, keys=None) -> List[AbstractServiceHandler]:
+def get_genereic_service_handlers(
+	services=None, keys=None
+) -> List[AbstractServiceHandler]:
 	_ensure_service_handlers()
 	if keys is None:
 		if services is not None:
 			keys = {s.key for s in services}
-	return [_services[key] for key in _services if (len(keys) == 0 or key in keys) and _services[key].is_generic]
+	return [
+		_services[key]
+		for key in _services
+		if (len(keys) == 0 or key in keys) and _services[key].is_generic
+	]
+
 
 ################
 # Link handler #
@@ -278,16 +333,17 @@ def get_genereic_service_handlers(services=None, keys=None) -> List[AbstractServ
 
 from data.models import Show, EpisodeScore, UnprocessedShow, Link
 
+
 class AbstractInfoHandler(ABC, Requestable):
 	def __init__(self, key, name):
 		self.key = key
 		self.name = name
 		self.config = None
-	
+
 	def set_config(self, config):
-		#debug("Setting config of {} to {}".format(self.key, config))
+		# debug("Setting config of {} to {}".format(self.key, config))
 		self.config = config
-	
+
 	@abstractmethod
 	def get_link(self, link: Link) -> Optional[str]:
 		"""
@@ -296,18 +352,18 @@ class AbstractInfoHandler(ABC, Requestable):
 		:return: A URL
 		"""
 		return None
-	
+
 	@abstractmethod
 	def extract_show_id(self, url: str) -> Optional[str]:
 		"""
 		Extracts a show's ID from its URL.
 		For example, 31737 is extracted from the MAL URL
-			http://myanimelist.net/anime/31737/Gakusen_Toshi_Asterisk_2nd_Season
-		:param url: 
+				http://myanimelist.net/anime/31737/Gakusen_Toshi_Asterisk_2nd_Season
+		:param url:
 		:return: The show's service ID
 		"""
 		return None
-	
+
 	@abstractmethod
 	def find_show(self, show_name: str, **kwargs) -> List[Show]:
 		"""
@@ -317,11 +373,11 @@ class AbstractInfoHandler(ABC, Requestable):
 		:return: A list of shows (empty list if no shows or error)
 		"""
 		return list()
-	
+
 	@abstractmethod
 	def find_show_info(self, show_id: str, **kwargs) -> Optional[UnprocessedShow]:
 		return None
-	
+
 	@abstractmethod
 	def get_episode_count(self, link: Link, **kwargs) -> Optional[int]:
 		"""
@@ -331,7 +387,7 @@ class AbstractInfoHandler(ABC, Requestable):
 		:return: The episode count, otherwise None
 		"""
 		return None
-	
+
 	@abstractmethod
 	def get_show_score(self, show, link, **kwargs) -> Optional[EpisodeScore]:
 		"""
@@ -342,29 +398,35 @@ class AbstractInfoHandler(ABC, Requestable):
 		:return: The show's score, otherwise None
 		"""
 		return None
-	
+
 	@abstractmethod
-	def get_seasonal_shows(self, year=None, season=None, **kwargs) -> List[UnprocessedShow]:
+	def get_seasonal_shows(
+		self, year=None, season=None, **kwargs
+	) -> List[UnprocessedShow]:
 		"""
 		Gets a list of shows airing in a particular season.
 		If year and season are None, uses the current season.
 		Note: Not all sites may allow specific years and seasons.
-		:param year: 
-		:param season: 
+		:param year:
+		:param season:
 		:param kwargs: Extra arguments, particularly useragent
 		:return: A list of UnprocessedShows (empty list if no shows or error)
 		"""
 		return list()
-	
+
+
 # Link sites
 
 _link_sites = dict()
+
 
 def _ensure_link_handlers():
 	global _link_sites
 	if _link_sites is None or len(_link_sites) == 0:
 		from . import info
+
 		_link_sites = import_all_services(info, "InfoHandler")
+
 
 def get_link_handlers() -> Dict[str, AbstractInfoHandler]:
 	"""
@@ -374,7 +436,8 @@ def get_link_handlers() -> Dict[str, AbstractInfoHandler]:
 	_ensure_link_handlers()
 	return _link_sites
 
-def get_link_handler(link_site=None, key:str=None) -> Optional[AbstractInfoHandler]:
+
+def get_link_handler(link_site=None, key: str = None) -> Optional[AbstractInfoHandler]:
 	"""
 	Returns an instance of a link handler representing the given link site.
 	:param link_site: A link site
@@ -388,11 +451,13 @@ def get_link_handler(link_site=None, key:str=None) -> Optional[AbstractInfoHandl
 		return _link_sites[key]
 	return None
 
+
 ################
 # Poll handler #
 ################
 
 from data.models import Poll
+
 
 class AbstractPollHandler(ABC, Requestable):
 	def __init__(self, key):
@@ -438,13 +503,17 @@ class AbstractPollHandler(ABC, Requestable):
 		"""
 		return None
 
+
 _poll_sites = dict()
+
 
 def _ensure_poll_handlers():
 	global _poll_sites
 	if _poll_sites is None or len(_poll_sites) == 0:
 		from . import poll
+
 		_poll_sites = import_all_services(poll, "PollHandler")
+
 
 def get_poll_handlers() -> Dict[str, AbstractPollHandler]:
 	"""
@@ -453,6 +522,7 @@ def get_poll_handlers() -> Dict[str, AbstractPollHandler]:
 	"""
 	_ensure_poll_handlers()
 	return _poll_sites
+
 
 def get_default_poll_handler() -> AbstractPollHandler:
 	"""

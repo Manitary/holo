@@ -5,8 +5,8 @@ import re
 
 from .. import AbstractInfoHandler
 
-class InfoHandler(AbstractInfoHandler):
 
+class InfoHandler(AbstractInfoHandler):
 	def __init__(self):
 		super().__init__("official", "Official Website")
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+
 if sys.version_info[0] != 3 or sys.version_info[1] < 5:
 	print("Holo requires Python version 3.5 or greater")
 	sys.exit(1)
@@ -12,11 +13,13 @@ version = "0.1.4"
 # Ensure proper files can be access if running with cron
 import os
 from pathlib import Path
+
 os.chdir(str(Path(__file__).parent.parent))
 
 # Do the things
 from data import database
 import services
+
 
 def main(config, args, extra_args):
 	from logging import debug, info, warning, error, exception
@@ -42,14 +45,17 @@ def main(config, args, extra_args):
 		elif config.module == "edit":
 			info("Editing database")
 			import module_edit as m
+
 			m.main(config, db, *extra_args)
 		elif config.module == "episode":
 			info("Finding new episodes")
 			import module_find_episodes as m
+
 			m.main(config, db, debug=config.debug)
 		elif config.module == "find":
 			info("Finding new shows")
 			import module_find_shows as m
+
 			if args.output[0] == "db":
 				m.main(config, db, False)
 			elif args.output[0] == "yaml":
@@ -58,14 +64,17 @@ def main(config, args, extra_args):
 		elif config.module == "update":
 			info("Updating shows")
 			import module_update_shows as m
+
 			m.main(config, db)
 		elif config.module == "create":
 			info("Creating new thread")
 			import module_create_threads as m
+
 			m.main(config, db, *extra_args)
 		elif config.module == "batch":
 			info("Batch creating threads")
 			import module_batch_create as m
+
 			m.main(config, db, *extra_args)
 		else:
 			warning("This should never happen or you broke it!")
@@ -75,25 +84,85 @@ def main(config, args, extra_args):
 
 	db.close()
 
+
 if __name__ == "__main__":
 	# Parse args
 	import argparse
+
 	parser = argparse.ArgumentParser(description="{}, {}".format(name, description))
-	parser.add_argument("--no-input", dest="no_input", action="store_true", help="run without stdin and write to a log file")
-	parser.add_argument("-m", "--module", dest="module", nargs=1, choices=["setup", "edit", "episode", "update", "find", "create", "batch"], default=["episode"], help="runs the specified module")
-	parser.add_argument("-c", "--config", dest="config_file", nargs=1, default=["config.ini"], help="use or create the specified database location")
-	parser.add_argument("-d", "--database", dest="db_name", nargs=1, default=None, help="use or create the specified database location")
-	parser.add_argument("-s", "--subreddit", dest="subreddit", nargs=1, default=None, help="set the subreddit on which to make posts")
-	parser.add_argument("-o", "--output", dest="output", nargs=1, default="db", help="set the output mode (db or yaml) if supported")
-	parser.add_argument("-L", "--log-dir", dest="log_dir", nargs=1, default=["logs"], help="set the log directory")
-	parser.add_argument("-v", "--version", action="version", version="{} v{}, {}".format(name, version, description))
+	parser.add_argument(
+		"--no-input",
+		dest="no_input",
+		action="store_true",
+		help="run without stdin and write to a log file",
+	)
+	parser.add_argument(
+		"-m",
+		"--module",
+		dest="module",
+		nargs=1,
+		choices=["setup", "edit", "episode", "update", "find", "create", "batch"],
+		default=["episode"],
+		help="runs the specified module",
+	)
+	parser.add_argument(
+		"-c",
+		"--config",
+		dest="config_file",
+		nargs=1,
+		default=["config.ini"],
+		help="use or create the specified database location",
+	)
+	parser.add_argument(
+		"-d",
+		"--database",
+		dest="db_name",
+		nargs=1,
+		default=None,
+		help="use or create the specified database location",
+	)
+	parser.add_argument(
+		"-s",
+		"--subreddit",
+		dest="subreddit",
+		nargs=1,
+		default=None,
+		help="set the subreddit on which to make posts",
+	)
+	parser.add_argument(
+		"-o",
+		"--output",
+		dest="output",
+		nargs=1,
+		default="db",
+		help="set the output mode (db or yaml) if supported",
+	)
+	parser.add_argument(
+		"-L",
+		"--log-dir",
+		dest="log_dir",
+		nargs=1,
+		default=["logs"],
+		help="set the log directory",
+	)
+	parser.add_argument(
+		"-v",
+		"--version",
+		action="version",
+		version="{} v{}, {}".format(name, version, description),
+	)
 	parser.add_argument("--debug", action="store_true", default=False)
 	parser.add_argument("extra", nargs="*")
 	args = parser.parse_args()
 
 	# Load config file
 	import config as config_loader
-	config_file = os.environ["HOLO_CONFIG"] if "HOLO_CONFIG" in os.environ else args.config_file[0]
+
+	config_file = (
+		os.environ["HOLO_CONFIG"]
+		if "HOLO_CONFIG" in os.environ
+		else args.config_file[0]
+	)
 	c = config_loader.from_file(config_file)
 	if c is None:
 		print("Cannot start without a valid configuration file")
@@ -113,20 +182,29 @@ if __name__ == "__main__":
 
 	import logging
 	from logging.handlers import TimedRotatingFileHandler
+
 	if use_log:
 		os.makedirs(c.log_dir, exist_ok=True)
 
-		#from datetime import datetime
-		#log_file = "logs/{date}_{mod}.log".format(date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), mod=c.module)
+		# from datetime import datetime
+		# log_file = "logs/{date}_{mod}.log".format(date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), mod=c.module)
 		log_file = "{dir}/holo_{mod}.log".format(dir=c.log_dir, mod=c.module)
 		logging.basicConfig(
-			#filename=log_file,
-			handlers=[TimedRotatingFileHandler(log_file, when="midnight", backupCount=7, encoding="UTF-8")],
+			# filename=log_file,
+			handlers=[
+				TimedRotatingFileHandler(
+					log_file, when="midnight", backupCount=7, encoding="UTF-8"
+				)
+			],
 			format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
 			datefmt="%Y-%m-%d %H:%M:%S",
-			level=logging.DEBUG if c.debug else logging.INFO)
+			level=logging.DEBUG if c.debug else logging.INFO,
+		)
 	else:
-		logging.basicConfig(format="%(levelname)s | %(message)s", level=logging.DEBUG if c.debug else logging.INFO)
+		logging.basicConfig(
+			format="%(levelname)s | %(message)s",
+			level=logging.DEBUG if c.debug else logging.INFO,
+		)
 	logging.getLogger("requests").setLevel(logging.WARNING)
 	logging.getLogger("praw-script-oauth").setLevel(logging.WARNING)
 

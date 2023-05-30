@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from .. import AbstractServiceHandler
 from data.models import Episode, UnprocessedStream
 
+
 class ServiceHandler(AbstractServiceHandler):
 	_playlist_api_query = "https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId={id}&key={key}"
 	_videos_api_query = "https://youtube.googleapis.com/youtube/v3/videos?part=status&part=snippet&hl=en&id={id}&key={key}"
@@ -29,10 +30,16 @@ class ServiceHandler(AbstractServiceHandler):
 					if episode is not None:
 						episodes.append(episode)
 				except:
-					exception(f"Problem digesting episode for Youtube/{stream.show_key}")
+					exception(
+						f"Problem digesting episode for Youtube/{stream.show_key}"
+					)
 
 		if len(episode_datas) > 0:
-			debug("  {} episodes found, {} valid".format(len(episode_datas), len(episodes)))
+			debug(
+				"  {} episodes found, {} valid".format(
+					len(episode_datas), len(episodes)
+				)
+			)
 		else:
 			debug("  No episodes found")
 		return episodes
@@ -85,7 +92,7 @@ class ServiceHandler(AbstractServiceHandler):
 			return None
 		api_key = self.config["api_key"]
 		if video_ids:
-			return self._videos_api_query.format(id=','.join(video_ids), key=api_key)
+			return self._videos_api_query.format(id=",".join(video_ids), key=api_key)
 		else:
 			return None
 
@@ -106,30 +113,45 @@ class ServiceHandler(AbstractServiceHandler):
 			return match.group(1)
 		return None
 
+
 # Episode feeds format
+
 
 def _verify_feed(feed):
 	debug("Verifying feed")
-	if not (feed["kind"] == "youtube#playlistItemListResponse" or feed["kind"] == "youtube#videoListResponse"):
+	if not (
+		feed["kind"] == "youtube#playlistItemListResponse"
+		or feed["kind"] == "youtube#videoListResponse"
+	):
 		debug("  Feed does not match request")
 		return False
 	if feed["pageInfo"]["totalResults"] > feed["pageInfo"]["resultsPerPage"]:
-		debug(f"  Too many results ({feed['pageInfo']['totalResults']}), will not get all episodes")
+		debug(
+			f"  Too many results ({feed['pageInfo']['totalResults']}), will not get all episodes"
+		)
 		return False
 	debug("  Feed verified")
 	return True
 
-_excludors = [re.compile(x, re.I) for x in [
-	"(?:[^a-zA-Z]|^)(?:PV|OP|ED)(?:[^a-zA-Z]|$)",
-	"blu.?ray",
-	"preview",
-]]
 
-_num_extractors = [re.compile(x, re.I) for x in [
-	r".*\D(\d{2,3})(?:\D|$)",
-	r".*episode (\d+)(?:\D|$)",
-	r".*S(?:\d+)E(\d+)(?:\D|$)",
-]]
+_excludors = [
+	re.compile(x, re.I)
+	for x in [
+		"(?:[^a-zA-Z]|^)(?:PV|OP|ED)(?:[^a-zA-Z]|$)",
+		"blu.?ray",
+		"preview",
+	]
+]
+
+_num_extractors = [
+	re.compile(x, re.I)
+	for x in [
+		r".*\D(\d{2,3})(?:\D|$)",
+		r".*episode (\d+)(?:\D|$)",
+		r".*S(?:\d+)E(\d+)(?:\D|$)",
+	]
+]
+
 
 def _is_valid_episode(feed_episode, show_id):
 	if feed_episode["status"]["privacyStatus"] == "private":
@@ -150,24 +172,26 @@ def _is_valid_episode(feed_episode, show_id):
 		return False
 	return True
 
+
 def _digest_episode(feed_episode):
 	_video_url = "https://www.youtube.com/watch?v={video_id}"
 	snippet = feed_episode["snippet"]
 
 	title = snippet["localized"]["title"]
 	episode_num = _extract_episode_num(title)
-	if episode_num is None or not 0 < episode_num <720:
+	if episode_num is None or not 0 < episode_num < 720:
 		return None
 
-	date_string = snippet["publishedAt"].replace('Z', '')
-	#date_string = snippet["publishedAt"].replace('Z', '+00:00') # Use this for offset-aware dates
+	date_string = snippet["publishedAt"].replace("Z", "")
+	# date_string = snippet["publishedAt"].replace('Z', '+00:00') # Use this for offset-aware dates
 	date = datetime.fromisoformat(date_string) or datetime.utcnow()
 
 	link = _video_url.format(video_id=feed_episode["id"])
 	return Episode(episode_num, None, link, date)
 
+
 def _extract_episode_num(name):
-	debug(f"Extracting episode number from \"{name}\"")
+	debug(f'Extracting episode number from "{name}"')
 	if any(ex.search(name) is not None for ex in _excludors):
 		return None
 	for regex in _num_extractors:

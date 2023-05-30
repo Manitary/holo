@@ -9,19 +9,22 @@ from urllib.parse import quote_plus as url_quote
 from .. import AbstractServiceHandler
 from data.models import Episode
 
+
 class ServiceHandler(AbstractServiceHandler):
-	_search_base = "https://{domain}/?page=rss&c=1_2&f={filter}&q={q}&exclude={excludes}"
+	_search_base = (
+		"https://{domain}/?page=rss&c=1_2&f={filter}&q={q}&exclude={excludes}"
+	)
 	_recent_list = "https://{domain}/?page=rss&c=1_2&f={filter}&exclude={excludes}"
-	
+
 	def __init__(self):
 		super().__init__("nyaa", "Nyaa", True)
-	
+
 	# Episode finding
-	
+
 	def get_all_episodes(self, stream, **kwargs):
 		info("Getting live episodes for Nyaa/{}".format(stream.show_key))
 		episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
-		
+
 		# Check data validity and digest
 		episodes = []
 		for episode_data in episode_datas:
@@ -31,10 +34,18 @@ class ServiceHandler(AbstractServiceHandler):
 					if episode is not None:
 						episodes.append(episode)
 				except:
-					exception("Problem digesting episode for Crunchyroll/{}".format(stream.show_key))
-		
+					exception(
+						"Problem digesting episode for Crunchyroll/{}".format(
+							stream.show_key
+						)
+					)
+
 		if len(episode_datas) > 0:
-			debug("  {} episodes found, {} valid".format(len(episode_datas), len(episodes)))
+			debug(
+				"  {} episodes found, {} valid".format(
+					len(episode_datas), len(episodes)
+				)
+			)
 		else:
 			debug("  No episodes found")
 		return episodes
@@ -61,7 +72,9 @@ class ServiceHandler(AbstractServiceHandler):
 					if episode is not None:
 						show_episodes = episodes.get(stream, list())
 						show_episodes.append(episode)
-						debug(f"Adding episode {episode.number} for show {stream.show.id}")
+						debug(
+							f"Adding episode {episode.number} for show {stream.show.id}"
+						)
 						episodes[stream] = show_episodes
 				except:
 					exception(f"Problem digesting torrent {torrent.id}")
@@ -79,7 +92,7 @@ class ServiceHandler(AbstractServiceHandler):
 				names.append(show.name_en)
 
 			for name in names:
-				#debug(f"  Trying: {name}")
+				# debug(f"  Trying: {name}")
 				# Match if each word in the show name is in the torrent name
 				# Intent is to allow inclusion of fansub group names
 				words_show = set(_normalize_show_name(name).split())
@@ -121,45 +134,49 @@ class ServiceHandler(AbstractServiceHandler):
 		if "domain" not in self.config or not self.config["domain"]:
 			error("  Domain not specified in config")
 			return list()
-		
+
 		# Send request
-		query = re.sub("[`~!@#$%^&*()+=:;,.<>?/|\"]+", " ", show_key)
+		query = re.sub('[`~!@#$%^&*()+=:;,.<>?/|"]+', " ", show_key)
 		query = re.sub("season", " ", query, flags=re.I)
 		query = re.sub(" +", " ", query)
-		query = re.sub("(?:[^ ])-", " ", query) # do not ignore the NOT operator
+		query = re.sub("(?:[^ ])-", " ", query)  # do not ignore the NOT operator
 		debug("  query={}".format(query))
 		query = url_quote(query, safe="", errors="ignore")
-		
+
 		domain = self.config.get("domain", "nyaa.si")
 		filter_ = self.config.get("filter", "2")
 		excludes = self.config.get("excluded_users", "").replace(" ", "")
-		url = self._search_base.format(domain=domain, filter=filter_, excludes=excludes, q=query)
+		url = self._search_base.format(
+			domain=domain, filter=filter_, excludes=excludes, q=query
+		)
 		response = self.request(url, rss=True, **kwargs)
 		if response is None:
 			error("Cannot get latest show for Nyaa/{}".format(show_key))
 			return list()
-		
+
 		# Parse RSS feed
 		if not _verify_feed(response):
 			warning("Parsed feed could not be verified, may have unexpected results")
 		return response.get("entries", list())
-	
+
 	# Don't need these!
-	
+
 	def get_stream_link(self, stream):
 		return None
-	
+
 	def get_stream_info(self, stream, **kwargs):
 		return None
-	
+
 	def extract_show_key(self, url):
 		# The show key for Nyaa is just the search string
 		return url
-	
+
 	def get_seasonal_streams(self, **kwargs):
 		return list()
 
+
 # Feed parsing
+
 
 def _verify_feed(feed):
 	debug("Verifying feed")
@@ -168,6 +185,7 @@ def _verify_feed(feed):
 		return False
 	debug("  Feed verified")
 	return True
+
 
 def _is_valid_episode(feed_episode):
 	if any(ex.search(feed_episode["title"]) is not None for ex in _exludors):
@@ -184,9 +202,10 @@ def _is_valid_episode(feed_episode):
 		return False
 	return True
 
+
 def _digest_episode(feed_episode):
 	title = feed_episode["title"]
-	debug("Extracting episode number from \"{}\"".format(title))
+	debug('Extracting episode number from "{}"'.format(title))
 	episode_num = _extract_episode_num(title)
 	if episode_num is not None:
 		debug("  Match found, num={}".format(episode_num))
@@ -237,6 +256,7 @@ def _extract_episode_num(name):
 			num = int(match.group(1))
 			return num
 	return None
+
 
 def _normalize_show_name(name):
 	"""

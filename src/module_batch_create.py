@@ -5,7 +5,12 @@ import services
 from data.models import Stream, Episode
 import reddit
 
-from module_find_episodes import _create_reddit_post, _edit_reddit_post, _format_post_text
+from module_find_episodes import (
+	_create_reddit_post,
+	_edit_reddit_post,
+	_format_post_text,
+)
+
 
 def main(config, db, show_name, episode_count):
 	int_episode_count = int(episode_count)
@@ -17,9 +22,11 @@ def main(config, db, show_name, episode_count):
 	stream = Stream.from_show(show)
 
 	post_urls = list()
-	for i in range(1, int_episode_count+1):
+	for i in range(1, int_episode_count + 1):
 		int_episode = Episode(i, None, None, None)
-		post_url = _create_reddit_post(config, db, show, stream, int_episode, submit=not config.debug)
+		post_url = _create_reddit_post(
+			config, db, show, stream, int_episode, submit=not config.debug
+		)
 		info("  Post URL: {}".format(post_url))
 		if post_url is not None:
 			post_url = post_url.replace("http:", "https:")
@@ -29,18 +36,32 @@ def main(config, db, show_name, episode_count):
 		post_urls.append(post_url)
 
 	for editing_episode in db.get_episodes(show):
-		_edit_reddit_post(config, db, show, stream, editing_episode, editing_episode.link, submit=not config.debug)
+		_edit_reddit_post(
+			config,
+			db,
+			show,
+			stream,
+			editing_episode,
+			editing_episode.link,
+			submit=not config.debug,
+		)
 
-	megathread_title, megathread_body = _create_megathread_content(config, db, show, stream, episode_count)
+	megathread_title, megathread_body = _create_megathread_content(
+		config, db, show, stream, episode_count
+	)
 
 	if not config.debug:
-		megathread_post = reddit.submit_text_post(config.subreddit, megathread_title, megathread_body)
+		megathread_post = reddit.submit_text_post(
+			config.subreddit, megathread_title, megathread_body
+		)
 	else:
-                megathread_post = None
-		
+		megathread_post = None
+
 	if megathread_post is not None:
 		debug("Post successful")
-		megathread_url = reddit.get_shortlink_from_id(megathread_post.id).replace("http:", "https:")
+		megathread_url = reddit.get_shortlink_from_id(megathread_post.id).replace(
+			"http:", "https:"
+		)
 	else:
 		error("Failed to submit post")
 		megathread_url = None
@@ -54,12 +75,29 @@ def main(config, db, show_name, episode_count):
 
 def _create_megathread_content(config, db, show, stream, episode_count):
 	title = _create_megathread_title(config, show, episode_count)
-	title = _format_post_text(config, db, title, config.post_formats, show, Episode(episode_count, None, None, None), stream)
-	info("Title:\n"+title)
+	title = _format_post_text(
+		config,
+		db,
+		title,
+		config.post_formats,
+		show,
+		Episode(episode_count, None, None, None),
+		stream,
+	)
+	info("Title:\n" + title)
 
-	body = _format_post_text(config, db, config.batch_thread_post_body, config.post_formats, show, Episode(episode_count, None, None, None), stream)
-	info("Body:\n"+body)
+	body = _format_post_text(
+		config,
+		db,
+		config.batch_thread_post_body,
+		config.post_formats,
+		show,
+		Episode(episode_count, None, None, None),
+		stream,
+	)
+	info("Body:\n" + body)
 	return title, body
+
 
 def _create_megathread_title(config, show, episode_count):
 	if show.name_en:
