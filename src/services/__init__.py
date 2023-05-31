@@ -413,7 +413,7 @@ class AbstractInfoHandler(ABC, Requestable):
 	@abstractmethod
 	def get_show_score(
 		self, show: Show, link: Link, **kwargs: Any
-	) -> EpisodeScore | None:
+	) -> float | None:
 		"""
 		Gets the score of the specified show on the site given by the link.
 		:param show: The show being checked

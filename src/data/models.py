@@ -222,12 +222,12 @@ class UnprocessedShow:
 	site_key: str
 	show_key: str
 	name: str
-	name_en: str
 	more_names: list[str]
-	show_type: int
-	episode_count: int
-	has_source: int
-	is_nsfw: int
+	show_type: ShowType
+	episode_count: int = 0
+	has_source: int = 0
+	is_nsfw: int = 0
+	name_en: str | None = None
 
 
 @dataclass

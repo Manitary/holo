@@ -3,15 +3,15 @@
 
 import re
 import logging
-from logging import debug, error, info, warning
 from typing import Any
 from xml.etree import ElementTree as xml_parser
 
-from data.models import Link, ShowType, UnprocessedShow
+from data.models import Link, Show, ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
 logger = logging.getLogger(__name__)
+
 
 class InfoHandler(AbstractInfoHandler):
 	_show_link_base = "https://myanimelist.net/anime/{id}/"
@@ -51,28 +51,32 @@ class InfoHandler(AbstractInfoHandler):
 			assert child.tag == "entry"
 
 			try:
-				id = child.find("id").text
-				name = child.find("title").text
-				more_names = [child.find("english").text]
+				id: str = child.find("id").text
+				name: str = child.find("title").text
+				more_names: list[str] = [child.find("english").text]
 			except AttributeError:
 				logger.error("Malformed MAL entry: required tags are missing.")
 				return []
 
 			show = UnprocessedShow(
-				self.key, id, name, more_names, ShowType.UNKNOWN, 0, False
+				site_key=self.key,
+				show_key=id,
+				name=name,
+				more_names=more_names,
+				show_type=ShowType.UNKNOWN,
 			)
 			shows.append(show)
 
 		return shows
 
-	def find_show_info(self, show_id, **kwargs):
-		debug("Getting show info for {}".format(show_id))
+	def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
+		logger.debug("Getting show info for %s", show_id)
 
 		# Request show page from MAL
 		url = self._show_link_base.format(id=show_id)
 		response = self._mal_request(url, **kwargs)
 		if response is None:
-			error("Cannot get show page")
+			logger.error("Cannot get show page")
 			return None
 
 		# Parse show page
@@ -80,104 +84,114 @@ class InfoHandler(AbstractInfoHandler):
 		# English
 		name_elem = names_sib.find_next_sibling("div")
 		if name_elem is None:
-			warning("  Name elem not found")
+			logger.warning("  Name elem not found")
 			return None
 		name_english = name_elem.string
-		info("  English: {}".format(name_english))
+		logger.info("  English: %s", name_english)
 
 		names = [name_english]
-		return UnprocessedShow(self.key, id, None, names, ShowType.UNKNOWN, 0, False)
+		return UnprocessedShow(
+			site_key=self.key,
+			show_key=show_id,
+			name=name_english,
+			more_names=names,
+			show_type=ShowType.UNKNOWN,
+		)
 
-	def get_episode_count(self, link, **kwargs):
-		debug("Getting episode count")
+	def get_episode_count(self, link: Link, **kwargs: Any):
+		logger.debug("Getting episode count")
 
 		# Request show page from MAL
 		url = self._show_link_base.format(id=link.site_key)
 		response = self._mal_request(url, **kwargs)
 		if response is None:
-			error("Cannot get show page")
+			logger.error("Cannot get show page")
 			return None
 
 		# Parse show page (ugh, HTML parsing)
 		count_sib = response.find("span", string="Episodes:")
 		if count_sib is None:
-			error("Failed to find episode count sibling")
+			logger.error("Failed to find episode count sibling")
 			return None
-		count_elem = count_sib.find_next_sibling(string=re.compile("\d+"))
+		count_elem = count_sib.find_next_sibling(string=re.compile(r"\d+"))
 		if count_elem is None:
-			warning("  Count not found")
+			logger.warning("  Count not found")
 			return None
 		count = int(count_elem.strip())
-		debug("  Count: {}".format(count))
+		logger.debug("  Count: %s", count)
 
 		return count
 
-	def get_show_score(self, show, link, **kwargs):
-		debug("Getting show score")
+	def get_show_score(self, show: Show, link: Link, **kwargs: Any) -> float | None:
+		logger.debug("Getting show score")
 
 		# Request show page
 		url = self._show_link_base.format(id=link.site_key)
 		response = self._mal_request(url, **kwargs)
 		if response is None:
-			error("Cannot get show page")
+			logger.error("Cannot get show page")
 			return None
 
 		# Find score
 		score_elem = response.find("span", attrs={"itemprop": "ratingValue"})
 		try:
 			score = float(score_elem.string)
-		except:
-			warning("  Count not found")
+		except AttributeError:
+			logger.warning("  Count not found")
 			return None
-		debug("  Score: {}".format(score))
+		logger.debug("  Score: %s", score)
 
 		return score
 
-	def get_seasonal_shows(self, year=None, season=None, **kwargs):
+	def get_seasonal_shows(
+		self, year: int | None = None, season: str | None = None, **kwargs: Any
+	) -> list[UnprocessedShow]:
 		# TODO: use year and season if provided
-		debug("Getting season shows: year={}, season={}".format(year, season))
+		logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
 		# Request season page from MAL
 		response = self._mal_request(self._season_show_url, **kwargs)
 		if response is None:
-			error("Cannot get show list")
-			return list()
+			logger.error("Cannot get show list")
+			return []
 
 		# Parse page (ugh, HTML parsing. Where's the useful API, MAL?)
 		lists = response.find_all(class_="seasonal-anime-list")
 		if len(lists) == 0:
-			error("Invalid page? Lists not found")
-			return list()
+			logger.error("Invalid page? Lists not found")
+			return []
 		new_list = lists[0].find_all(class_="seasonal-anime")
 		if len(new_list) == 0:
-			error("Invalid page? Shows not found in list")
-			return list()
+			logger.error("Invalid page? Shows not found in list")
+			return []
 
-		new_shows = list()
-		episode_count_regex = re.compile("(\d+|\?) eps?")
+		new_shows: list[UnprocessedShow] = []
+		episode_count_regex = re.compile(r"(\d+|\?) eps?")
 		for show in new_list:
 			show_key = show.find(class_="genres")["id"]
 			title = str(show.find("a", class_="link-title").string)
 			title = _normalize_title(title)
-			more_names = (
-				[title[:-11]] if title.lower().endswith("2nd season") else list()
-			)
+			more_names = [title[:-11]] if title.lower().endswith("2nd season") else []
 			show_type = ShowType.TV  # TODO, changes based on section/list
-			episode_count = episode_count_regex.search(
-				show.find(class_="eps").find(string=episode_count_regex)
-			).group(1)
-			episode_count = None if episode_count == "?" else int(episode_count)
+			try:
+				episode_count = int(
+					episode_count_regex.search(
+						show.find(class_="eps").find(string=episode_count_regex)
+					).group(1)
+				)
+			except (AttributeError, ValueError):
+				episode_count = 0
 			has_source = show.find(class_="source").string != "Original"
 
 			new_shows.append(
 				UnprocessedShow(
-					self.key,
-					show_key,
-					title,
-					more_names,
-					show_type,
-					episode_count,
-					has_source,
+					site_key=self.key,
+					show_key=show_key,
+					name=title,
+					more_names=more_names,
+					show_type=show_type,
+					episode_count=episode_count,
+					has_source=has_source,
 				)
 			)
 
@@ -189,7 +203,11 @@ class InfoHandler(AbstractInfoHandler):
 		return self.request_html(url=url, **kwargs)
 
 	def _mal_api_request(self, url: str, **kwargs: Any) -> xml_parser.Element | None:
-		if self.config is None or "username" not in self.config or "password" not in self.config:
+		if (
+			self.config is None
+			or "username" not in self.config
+			or "password" not in self.config
+		):
 			logger.error("Username and password required for MAL requests")
 			return None
 
@@ -197,8 +215,15 @@ class InfoHandler(AbstractInfoHandler):
 		return self.request_xml(url=url, auth=auth, **kwargs)
 
 
-def _convert_type(mal_type):
-	return None
+def _convert_type(mal_type: str) -> ShowType:
+	mal_type = mal_type.lower()
+	if mal_type == "tv":
+		return ShowType.TV
+	if mal_type == "movie":
+		return ShowType.MOVIE
+	if mal_type == "ova":
+		return ShowType.OVA
+	return ShowType.UNKNOWN
 
 
 def _normalize_title(title: str) -> str:
