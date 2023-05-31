@@ -18,6 +18,8 @@ def str_to_showtype(string: str) -> ShowType:
 	except KeyError:
 		return ShowType.UNKNOWN
 
+
+@dataclass
 class DbEqMixin:
 	id: int
 
@@ -30,10 +32,10 @@ class DbEqMixin:
 	def __hash__(self) -> int:
 		return hash(self.id)
 
-@dataclass
+
+@dataclass(eq=False)
 class Show(DbEqMixin):
 	# Note: arguments are order-sensitive
-	id: int
 	name: str
 	name_en: str
 	length: int
@@ -55,9 +57,12 @@ class Show(DbEqMixin):
 	def __str__(self) -> str:
 		return f"Show: {self.name} (id={self.id}, type={self.type}, len={self.length})"
 
+
 @dataclass
 class Episode:
-	def __init__(self, number: int, name: str, link: str, date: datetime | list[int]) -> None:
+	def __init__(
+		self, number: int, name: str, link: str, date: datetime | list[int]
+	) -> None:
 		# Note: arguments are order-sensitive
 		self.number = number
 		self.name = name  # Not stored in database
@@ -65,15 +70,18 @@ class Episode:
 		if isinstance(date, datetime):
 			self.date = date
 		elif date:
-			self.date = datetime(*date[:6]) # type: ignore
+			self.date = datetime(*date[:6])  # type: ignore
 
 	def __str__(self) -> str:
-		return f"Episode: {self.date} | Episode {self.number}, {self.name} ({self.link})"
+		return (
+			f"Episode: {self.date} | Episode {self.number}, {self.name} ({self.link})"
+		)
 
 	@property
 	def is_live(self, local: bool = False) -> bool:
 		now = datetime.now() if local else datetime.utcnow()
 		return now >= self.date
+
 
 @dataclass
 class EpisodeScore:
@@ -82,10 +90,10 @@ class EpisodeScore:
 	site_id: int
 	score: float
 
-@dataclass
+
+@dataclass(eq=False)
 class Service(DbEqMixin):
 	# Note: arguments are order-sensitive
-	id: int
 	key: str
 	name: str
 	enabled: int
@@ -94,18 +102,19 @@ class Service(DbEqMixin):
 	def __str__(self) -> str:
 		return f"Service: {self.key} ({self.id})"
 
-@dataclass
+
+@dataclass(eq=False)
 class Stream(DbEqMixin):
 	"""
 	remote_offset: relative to a start episode of 1
-			If a stream numbers new seasons after ones before, remote_offset should be positive.
-			If a stream numbers starting before 1 (ex. 0), remote_offset should be negative.
+		If a stream numbers new seasons after ones before, remote_offset should be positive.
+		If a stream numbers starting before 1 (ex. 0), remote_offset should be negative.
 	display_offset: relative to the internal numbering starting at 1
-			If a show should be displayed with higher numbering (ex. continuing after a split cour), display_offset should be positive.
-			If a show should be numbered lower than 1 (ex. 0), display_offset should be negative.
+		If a show should be displayed with higher numbering (ex. continuing after a split cour), display_offset should be positive.
+		If a show should be numbered lower than 1 (ex. 0), display_offset should be negative.
 	"""
+
 	# Note: arguments are order-sensitive
-	id: int
 	service: int
 	show: int
 	show_id: str | None
@@ -116,7 +125,10 @@ class Stream(DbEqMixin):
 	active: int = 1
 
 	def __str__(self) -> str:
-		return f"Stream: {self.show} ({self.show_key}@{self.service}), {self.remote_offset} {self.display_offset}"
+		return (
+			f"Stream: {self.show} ({self.show_key}@{self.service}), "
+			f"{self.remote_offset} {self.display_offset}"
+		)
 
 	@classmethod
 	def from_show(cls, show: Show) -> Self:
@@ -134,16 +146,17 @@ class Stream(DbEqMixin):
 		e.number += self.display_offset
 		return e
 
-@dataclass
+
+@dataclass(eq=False)
 class LinkSite(DbEqMixin):
 	# Note: arguments are order-sensitive
-	id: int
 	key: str
 	name: str
 	enabled: int
-	
+
 	def __str__(self) -> str:
 		return f"Link site: {self.key} ({self.id})"
+
 
 @dataclass
 class Link:
@@ -151,21 +164,29 @@ class Link:
 	site: str
 	show: str
 	site_key: str
-	
+
 	def __str__(self) -> str:
 		return f"Link: {self.site_key}@{self.site}, show={self.show}"
 
-@dataclass
+
+@dataclass(eq=False)
 class PollSite(DbEqMixin):
-	id: int
 	key: str
-	
+
 	def __str__(self) -> str:
 		return f"Poll site: {self.key}"
 
 
 class Poll:
-	def __init__(self, show_id: int, episode: int, service: int, id: str, date: datetime | str | int, score: float | None = None) -> None:
+	def __init__(
+		self,
+		show_id: int,
+		episode: int,
+		service: int,
+		id: str,
+		date: datetime | str | int,
+		score: float | None = None,
+	) -> None:
 		self.show_id = show_id
 		self.episode = episode
 		self.service_id = service
@@ -183,6 +204,7 @@ class Poll:
 	def __str__(self) -> str:
 		return f"Poll {self.show_id}/{self.episode} (Score {self.score})"
 
+
 @dataclass
 class LiteStream:
 	# Note: arguments are order-sensitive
@@ -193,6 +215,7 @@ class LiteStream:
 
 	def __str__(self) -> str:
 		return f"LiteStream: {self.service}|{self.service_name}, show={self.show}, url={self.url}"
+
 
 @dataclass
 class UnprocessedShow:
@@ -205,6 +228,7 @@ class UnprocessedShow:
 	episode_count: int
 	has_source: int
 	is_nsfw: int
+
 
 @dataclass
 class UnprocessedStream:
