@@ -3,10 +3,9 @@ import logging
 import sqlite3
 import re
 from functools import wraps, lru_cache
-from unidecode import unidecode
-from typing import Set, List, Optional, Any, Protocol, Callable, Self
+from typing import Set, List, Optional, Any, Protocol, Callable
 from datetime import datetime, timezone
-from dataclasses import fields
+from unidecode import unidecode
 from services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
 
 from .models import (
@@ -45,7 +44,7 @@ def living_in(the_database: str | None) -> DatabaseDatabase | None:
 		db = sqlite3.connect(the_database)
 		db.execute("PRAGMA foreign_keys=ON")
 	except sqlite3.OperationalError:
-		logger.error("Failed to open database, {}".format(the_database))
+		logger.error("Failed to open database, %s", the_database)
 		return None
 	return DatabaseDatabase(db)
 
@@ -84,8 +83,9 @@ def db_error_default(default_value: Any) -> Callable[[Callback], Callback] :
 	return decorate
 
 
+
 class DatabaseDatabase:
-	def __init__(self, db):
+	def __init__(self, db: sqlite3.Connection) -> None:
 		self._db = db
 		self.q = db.cursor()
 

@@ -7,8 +7,8 @@ import argparse
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from time import time
-from data import database
 from typing import Type
+from data import database
 from config import Config, InvalidConfigException
 import services
 
@@ -73,8 +73,8 @@ def main(config: Config, args: Type[ParserArguments]) -> None:
 			if args.output == "db":
 				m.main(config=config, db=db)
 			elif args.output == "yaml":
-				f = args.extra[0] if args.extra else "find_output.yaml"
-				m.main(config=config, db=db, output_file=f)
+				file_name = args.extra[0] if args.extra else "find_output.yaml"
+				m.main(config=config, db=db, output_file=file_name)
 		elif config.module == "update":
 			logging.info("Updating shows")
 			import module_update_shows as m
@@ -220,6 +220,7 @@ if __name__ == "__main__":
 
 	if config.debug:
 		logging.info("DEBUG MODE ENABLED")
+
 	start_time = time()
 	main(config=config, args=args)
 	end_time = time()
