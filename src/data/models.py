@@ -116,8 +116,8 @@ class Stream(DbEqMixin):
 
 	# Note: arguments are order-sensitive
 	service: int
-	show: int
-	show_id: str | None
+	show: Show
+	show_id: int
 	show_key: str
 	name: str
 	remote_offset: int = 0
@@ -132,7 +132,7 @@ class Stream(DbEqMixin):
 
 	@classmethod
 	def from_show(cls, show: Show) -> Self:
-		return Stream(-show.id, -1, show.id, None, show.name, show.name)
+		return Stream(-show.id, -1, show, show.id, show.name, show.name)
 
 	def to_internal_episode(self, episode: Episode) -> Episode:
 		# ? Seems unused? Why a shallow copy instead of altering directly?
