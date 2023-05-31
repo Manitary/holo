@@ -1,51 +1,63 @@
 # API information
-# 	https://myanimelist.net/modules.php?go=api
+# 	https://myanimelist.net/apiconfig/references/api/v2
 
-from logging import debug, info, warning, error
 import re
+import logging
+from logging import debug, error, info, warning
+from typing import Any
+from xml.etree import ElementTree as xml_parser
+
+from data.models import Link, ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler
-from data.models import UnprocessedShow, ShowType
 
+logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
 	_show_link_base = "https://myanimelist.net/anime/{id}/"
-	_show_link_matcher = "https?://(?:.+?\.)?myanimelist\.net/anime/([0-9]+)"
-	_season_show_url = "https://myanimelist.net/anime/season"
+	_show_link_matcher = r"https?://(?:.+?\.)?myanimelist\.net/anime/([0-9]+)"
+	_season_show_url = r"https://myanimelist.net/anime/season"
 
 	_api_search_base = "https://myanimelist.net/api/anime/search.xml?q={q}"
+	# TODO: deprecated API, change to use v2 instead.
 
-	def __init__(self):
-		super().__init__("mal", "MyAnimeList")
+	def __init__(self) -> None:
+		super().__init__(key="mal", name="MyAnimeList")
 
-	def get_link(self, link):
+	def get_link(self, link: Link | None) -> str | None:
 		if link is None:
 			return None
 		return self._show_link_base.format(id=link.site_key)
 
-	def extract_show_id(self, url):
-		if url is not None:
-			match = re.match(self._show_link_matcher, url, re.I)
-			if match:
-				return match.group(1)
+	def extract_show_id(self, url: str | None) -> str | None:
+		if url is None:
+			return None
+		if match := re.match(self._show_link_matcher, url, re.I):
+			return match.group(1)
 		return None
 
-	def find_show(self, show_name, **kwargs):
+	def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
 		url = self._api_search_base.format(q=show_name)
 		result = self._mal_api_request(url, **kwargs)
 		if result is None:
-			error("Failed to find show")
-			return list()
+			logger.error("Failed to find show")
+			return []
 
 		assert result.tag == "anime"
-		shows = list()
+		shows: list[UnprocessedShow] = []
+
 		for child in result:
 			print(child)
 			assert child.tag == "entry"
 
-			id = child.find("id").text
-			name = child.find("title").text
-			more_names = [child.find("english").text]
+			try:
+				id = child.find("id").text
+				name = child.find("title").text
+				more_names = [child.find("english").text]
+			except AttributeError:
+				logger.error("Malformed MAL entry: required tags are missing.")
+				return []
+
 			show = UnprocessedShow(
 				self.key, id, name, more_names, ShowType.UNKNOWN, 0, False
 			)
@@ -173,22 +185,22 @@ class InfoHandler(AbstractInfoHandler):
 
 	# Private
 
-	def _mal_request(self, url, **kwargs):
-		return self.request(url, html=True, **kwargs)
+	def _mal_request(self, url: str, **kwargs: Any) -> Any:
+		return self.request_html(url=url, **kwargs)
 
-	def _mal_api_request(self, url, **kwargs):
-		if "username" not in self.config or "password" not in self.config:
-			error("Username and password required for MAL requests")
+	def _mal_api_request(self, url: str, **kwargs: Any) -> xml_parser.Element | None:
+		if self.config is None or "username" not in self.config or "password" not in self.config:
+			logger.error("Username and password required for MAL requests")
 			return None
 
 		auth = (self.config["username"], self.config["password"])
-		return self.request(url, auth=auth, xml=True, **kwargs)
+		return self.request_xml(url=url, auth=auth, **kwargs)
 
 
 def _convert_type(mal_type):
 	return None
 
 
-def _normalize_title(title):
-	title = re.sub(" \(TV\)", "", title)
+def _normalize_title(title: str) -> str:
+	title = re.sub(r" \(TV\)", "", title)
 	return title

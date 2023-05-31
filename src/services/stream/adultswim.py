@@ -43,7 +43,7 @@ class ServiceHandler(AbstractServiceHandler):
 		url = self._get_feed_url(show_key)
 
 		# Send request
-		response = self.request(url, html=True, **kwargs)
+		response = self.request_html(url=url, **kwargs)
 		if response is None:
 			error(f"Cannot get show page for {self.name}/{show_key}")
 			return list()
@@ -65,7 +65,7 @@ class ServiceHandler(AbstractServiceHandler):
 		info(f"Getting stream info for {self.name}/{stream.show_key}")
 
 		url = self._get_feed_url(stream.show_key)
-		response = self.request(url, html=True, **kwargs)
+		response = self.request_html(url=url, **kwargs)
 		if response is None:
 			error("Cannot get feed")
 			return None

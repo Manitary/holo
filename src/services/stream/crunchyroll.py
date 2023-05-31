@@ -54,7 +54,7 @@ class ServiceHandler(AbstractServiceHandler):
 		url = self._get_feed_url(show_key)
 
 		# Send request
-		response = self.request(url, rss=True, **kwargs)
+		response = self.request_rss(url=url, **kwargs)
 		if response is None:
 			error("Cannot get latest show for Crunchyroll/{}".format(show_key))
 			return list()
@@ -83,7 +83,7 @@ class ServiceHandler(AbstractServiceHandler):
 		info("Getting stream info for Crunchyroll/{}".format(stream.show_key))
 
 		url = self._get_feed_url(stream.show_key)
-		response = self.request(url, rss=True, **kwargs)
+		response = self.request_rss(url=url, **kwargs)
 		if response is None:
 			error("Cannot get feed")
 			return None
@@ -104,7 +104,7 @@ class ServiceHandler(AbstractServiceHandler):
 		debug("Getting season shows")
 
 		# Request page
-		response = self.request(self._season_url, html=True, **kwargs)
+		response = self.request_html(url=self._season_url, **kwargs)
 		if response is None:
 			error("Failed to get seasonal streams page")
 			return list()

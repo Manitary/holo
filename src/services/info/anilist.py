@@ -57,4 +57,4 @@ class InfoHandler(AbstractInfoHandler):
 		return None
 
 	def _site_request(self, url, **kwargs):
-		return self.request(url, html=True, **kwargs)
+		return self.request_html(url=url, **kwargs)

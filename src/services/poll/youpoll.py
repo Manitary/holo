@@ -71,7 +71,7 @@ class PollHandler(AbstractPollHandler):
 	def get_score(self, poll):
 		debug(f"Getting score for show {poll.show_id} / episode {poll.episode}")
 		try:
-			response = self.request(self.get_results_link(poll), html=True)
+			response = self.request_html(url=self.get_results_link(poll))
 		except:
 			error(
 				f"Couldn't get scores for poll {self.get_results_link(poll)} (query error)"

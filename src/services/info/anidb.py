@@ -105,10 +105,10 @@ class InfoHandler(AbstractInfoHandler):
 		return None
 
 	def _site_request(self, url, **kwargs):
-		return self.request(url, html=True, **kwargs)
+		return self.request_html(url=url, **kwargs)
 
 
-def _convert_show_type(type_str):
+def _convert_show_type(type_str: str) -> ShowType:
 	type_str = type_str.lower()
 	if type_str == "tv series":
 		return ShowType.TV
@@ -119,13 +119,13 @@ def _convert_show_type(type_str):
 	return ShowType.UNKNOWN
 
 
-def _normalize_title(title):
-	year_match = re.match("(.*) \([0-9]+\)", title)
+def _normalize_title(title: str) -> str:
+	year_match = re.match(r"(.*) \([0-9]+\)", title)
 	if year_match:
 		title = year_match.group(1)
-	title = re.sub(": second season", " 2nd Season", title, flags=re.I)
-	title = re.sub(": third season", " 3rd Season", title, flags=re.I)
-	title = re.sub(": fourth season", " 4th Season", title, flags=re.I)
-	title = re.sub(": fifth season", " 5th Season", title, flags=re.I)
-	title = re.sub(": sixth season", " 6th Season", title, flags=re.I)
+	title = re.sub(r": second season", " 2nd Season", title, flags=re.I)
+	title = re.sub(r": third season", " 3rd Season", title, flags=re.I)
+	title = re.sub(r": fourth season", " 4th Season", title, flags=re.I)
+	title = re.sub(r": fifth season", " 5th Season", title, flags=re.I)
+	title = re.sub(r": sixth season", " 6th Season", title, flags=re.I)
 	return title

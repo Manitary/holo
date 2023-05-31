@@ -1,23 +1,28 @@
-from logging import debug, warning, error
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
+import logging
+from logging import debug, warning
 from types import ModuleType
-from typing import List, Dict, Optional, Iterable, Protocol
+from typing import Any, Dict, Iterable, List, Optional
+from config import Config
+
+logger = logging.getLogger(__name__)
+
 # Common
 
-_service_configs = None
+_service_configs: dict[str, dict[str, str]] | None = None
 
-class Config(Protocol):
-	services: dict[str, dict[str, str]]
 
-def setup_services(config: Config):
+def setup_services(config: Config) -> None:
 	global _service_configs
 	_service_configs = config.services
 
 
-def _get_service_config(key):
+def _get_service_config(key: str) -> dict[str, str]:
+	if _service_configs is None:
+		return {}
 	if key in _service_configs:
 		return _service_configs[key]
-	return dict()
+	return {}
 
 
 def _make_service(service):
@@ -52,13 +57,14 @@ def import_all_services(pkg: ModuleType, class_name: str):
 # Requesting #
 ##############
 
-from functools import wraps, lru_cache
-from time import perf_counter, sleep
-import requests
+from functools import lru_cache, wraps
 from json import JSONDecodeError
+from time import perf_counter, sleep
 from xml.etree import ElementTree as xml_parser
-from bs4 import BeautifulSoup
+
 import feedparser
+import requests
+from bs4 import BeautifulSoup
 
 
 def rate_limit(wait_length):
@@ -83,94 +89,109 @@ def rate_limit(wait_length):
 
 class Requestable:
 	rate_limit_wait = 1
+	default_timeout = 10
 
 	@lru_cache(maxsize=100)
 	@rate_limit(rate_limit_wait)
 	def request(
 		self,
-		url,
-		json=False,
-		xml=False,
-		html=False,
-		rss=False,
-		proxy=None,
-		useragent=None,
-		auth=None,
-		timeout=10,
-	):
+		url: str,
+		proxy: list[str | int] | None = None,
+		useragent: str | None = None,
+		auth: tuple[str, str] | None = None,
+		timeout: int = default_timeout,
+	) -> requests.Response | None:
 		"""
 		Sends a request to the service.
 		:param url: The request URL
-		:param json: If True, return the response as parsed JSON
-		:param xml: If True, return the response as parsed XML
-		:param html: If True, return the response as parsed HTML
 		:param proxy: Optional proxy, a tuple of address and port
 		:param useragent: Ideally should always be set
 		:param auth: Tuple of username and password to use for HTTP basic auth
 		:param timeout: Amount of time to wait for a response in seconds
 		:return: The response if successful, otherwise None
 		"""
-		if proxy is not None:
-			if len(proxy) != 2:
-				warning("Invalid number of proxy values, need address and port")
-				proxy = None
-			else:
-				proxy = {"http": "http://{}:{}".format(*proxy)}
-				debug("Using proxy: {}", proxy)
+		proxies: dict[str, str] | None = None
+		if proxy:
+			try:
+				proxies = {"http": f"http://{proxy[0]}:{proxy[1]}"}
+				logger.debug("Using proxy: %s", proxies)
+			except Exception:
+				logger.warning("Invalid proxy, need address and port")
 
-		headers = {"User-Agent": useragent}
-		debug("Sending request")
-		debug("  URL={}".format(url))
-		debug("  Headers={}".format(headers))
+		headers = {"User-Agent": useragent} if useragent else {}
+		logger.debug("Sending request")
+		logger.debug("  URL=%s", url)
+		logger.debug("  Headers=%s", headers)
 		try:
 			response = requests.get(
-				url, headers=headers, proxies=proxy, auth=auth, timeout=timeout
+				url, headers=headers, proxies=proxies, auth=auth, timeout=timeout
 			)
 		except requests.exceptions.Timeout:
-			error("  Response timed out")
+			logger.error("  Response timed out")
 			return None
-		debug("  Status code: {}".format(response.status_code))
+		logger.debug("  Status code: %s", response.status_code)
 		if (
 			not response.ok or response.status_code == 204
 		):  # 204 is a special case for MAL errors
-			error("Response {}: {}".format(response.status_code, response.reason))
+			logger.error("Response %s: %s", response.status_code, response.reason)
 			return None
 		if (
 			len(response.text) == 0
 		):  # Some sites *coughfunimationcough* may return successful empty responses for new shows
-			error("Empty response (probably funimation)")
+			logger.error("Empty response (probably Funimation)")
+			return None
+		return response
+
+	def request_json(self, url: str, **kwargs: Any) -> Any:
+		response = self.request(url=url, **kwargs)
+		logger.debug("Response returning as JSON")
+		if response is None:
+			return None
+		try:
+			return response.json()
+		except JSONDecodeError as e:
+			logger.error("Response is not JSON", exc_info=e)
 			return None
 
-		if json:
-			debug("Response returning as JSON")
-			try:
-				return response.json()
-			except JSONDecodeError as e:
-				error("Response is not JSON", exc_info=e)
-				return None
-		if xml:
-			debug("Response returning as XML")
-			# TODO: error checking
-			raw_entry = xml_parser.fromstring(response.text)
-			# entry = dict((attr.tag, attr.text) for attr in raw_entry)
-			return raw_entry
-		if html:
-			debug("Returning response as HTML")
-			soup = BeautifulSoup(response.text, "html.parser")
-			return soup
-		if rss:
-			debug("Returning response as RSS feed")
-			rss = feedparser.parse(response.text)
-			return rss
-		debug("Response returning as text")
-		return response.text
+	def request_xml(self, url: str, **kwargs: Any) -> xml_parser.Element | None:
+		response = self.request(url=url, **kwargs)
+		logger.debug("Response returning as XML")
+		if response is None:
+			return None
+		# TODO: error checking
+		raw_entry = xml_parser.fromstring(response.text)
+		# entry = dict((attr.tag, attr.text) for attr in raw_entry)
+		return raw_entry
 
+	def request_html(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
+		response = self.request(url=url, **kwargs)
+		debug("Returning response as HTML")
+		if response is None:
+			return None
+		soup = BeautifulSoup(response.text, "html.parser")
+		return soup
+
+	def request_rss(self, url: str, **kwargs: Any) -> feedparser.FeedParserDict | None:
+		response = self.request(url=url, **kwargs)
+		logger.debug("Returning response as RSS feed")
+		if response is None:
+			return None
+		rss: feedparser.FeedParserDict = feedparser.parse(response.text)
+		return rss
+
+	def request_text(self, url: str, **kwargs: Any) -> str | None:
+		response = self.request(url=url, **kwargs)
+		logger.debug("Response returning as text")
+		if response is None:
+			return None
+		return response.text
 
 ###################
 # Service handler #
 ###################
 
 from datetime import datetime
+
 from data.models import Episode, Stream, UnprocessedStream
 
 
@@ -232,7 +253,7 @@ class AbstractServiceHandler(ABC, Requestable):
 		:param streams: The streams for which new episodes must be returned.
 		:param kwargs: Arguments passed to the request, such as proxy and authentication
 		:return: A dict in which each key is one of the requested streams
-				 and the value is a list of newly released episodes for the stream
+						 and the value is a list of newly released episodes for the stream
 		"""
 		return {stream: self.get_all_episodes(stream, **kwargs) for stream in streams}
 
@@ -250,7 +271,7 @@ class AbstractServiceHandler(ABC, Requestable):
 		"""
 		Extracts a show's key from its URL.
 		For example, "myriad-colors-phantom-world" is extracted from the Crunchyroll URL
-				http://www.crunchyroll.com/myriad-colors-phantom-world.rss
+						http://www.crunchyroll.com/myriad-colors-phantom-world.rss
 		:param url:
 		:return: The show's service key
 		"""
@@ -332,21 +353,21 @@ def get_genereic_service_handlers(
 # Link handler #
 ################
 
-from data.models import Show, EpisodeScore, UnprocessedShow, Link
+from data.models import EpisodeScore, Link, Show, UnprocessedShow
 
 
 class AbstractInfoHandler(ABC, Requestable):
-	def __init__(self, key, name):
+	def __init__(self, key: str, name: str) -> None:
 		self.key = key
 		self.name = name
-		self.config = None
+		self.config: dict[str, str] | None = None
 
-	def set_config(self, config):
+	def set_config(self, config: dict[str, str]) -> None:
 		# debug("Setting config of {} to {}".format(self.key, config))
 		self.config = config
 
 	@abstractmethod
-	def get_link(self, link: Link) -> Optional[str]:
+	def get_link(self, link: Link | None) -> str | None:
 		"""
 		Creates a URL using the information provided by a link object.
 		:param link: The link object
@@ -355,32 +376,32 @@ class AbstractInfoHandler(ABC, Requestable):
 		return None
 
 	@abstractmethod
-	def extract_show_id(self, url: str) -> Optional[str]:
+	def extract_show_id(self, url: str | None) -> str | None:
 		"""
 		Extracts a show's ID from its URL.
 		For example, 31737 is extracted from the MAL URL
-				http://myanimelist.net/anime/31737/Gakusen_Toshi_Asterisk_2nd_Season
+						http://myanimelist.net/anime/31737/Gakusen_Toshi_Asterisk_2nd_Season
 		:param url:
 		:return: The show's service ID
 		"""
 		return None
 
 	@abstractmethod
-	def find_show(self, show_name: str, **kwargs) -> List[Show]:
+	def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
 		"""
 		Searches the link site for a show with the specified name.
 		:param show_name: The desired show's name
 		:param kwargs: Extra arguments, particularly useragent
 		:return: A list of shows (empty list if no shows or error)
 		"""
-		return list()
+		return []
 
 	@abstractmethod
-	def find_show_info(self, show_id: str, **kwargs) -> Optional[UnprocessedShow]:
+	def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
 		return None
 
 	@abstractmethod
-	def get_episode_count(self, link: Link, **kwargs) -> Optional[int]:
+	def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
 		"""
 		Gets the episode count of the specified show on the site given by the link.
 		:param link: The link pointing to the site being checked
@@ -390,7 +411,9 @@ class AbstractInfoHandler(ABC, Requestable):
 		return None
 
 	@abstractmethod
-	def get_show_score(self, show, link, **kwargs) -> Optional[EpisodeScore]:
+	def get_show_score(
+		self, show: Show, link: Link, **kwargs: Any
+	) -> EpisodeScore | None:
 		"""
 		Gets the score of the specified show on the site given by the link.
 		:param show: The show being checked
@@ -402,8 +425,8 @@ class AbstractInfoHandler(ABC, Requestable):
 
 	@abstractmethod
 	def get_seasonal_shows(
-		self, year=None, season=None, **kwargs
-	) -> List[UnprocessedShow]:
+		self, year: int | None = None, season: str | None = None, **kwargs: Any
+	) -> list[UnprocessedShow]:
 		"""
 		Gets a list of shows airing in a particular season.
 		If year and season are None, uses the current season.
@@ -413,7 +436,7 @@ class AbstractInfoHandler(ABC, Requestable):
 		:param kwargs: Extra arguments, particularly useragent
 		:return: A list of UnprocessedShows (empty list if no shows or error)
 		"""
-		return list()
+		return []
 
 
 # Link sites
