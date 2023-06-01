@@ -1,5 +1,6 @@
 from datetime import datetime
 from dataclasses import dataclass, field
+from time import struct_time
 import enum
 import copy
 from typing import Self
@@ -61,7 +62,7 @@ class Show(DbEqMixin):
 @dataclass
 class Episode:
 	def __init__(
-		self, number: int, name: str, link: str, date: datetime | list[int]
+		self, number: int, name: str, link: str, date: datetime | struct_time
 	) -> None:
 		# Note: arguments are order-sensitive
 		self.number = number
@@ -77,7 +78,6 @@ class Episode:
 			f"Episode: {self.date} | Episode {self.number}, {self.name} ({self.link})"
 		)
 
-	@property
 	def is_live(self, local: bool = False) -> bool:
 		now = datetime.now() if local else datetime.utcnow()
 		return now >= self.date
