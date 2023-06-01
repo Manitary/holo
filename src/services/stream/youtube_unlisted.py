@@ -11,5 +11,5 @@ from services.stream import youtube
 class ServiceHandler(youtube.ServiceHandler):
 	def __init__(self):
 		super(youtube.ServiceHandler, self).__init__(
-			"youtube_unlisted", "Youtube (Unlisted)", False
+			key="youtube_unlisted", name="Youtube (Unlisted)", is_generic=False
 		)

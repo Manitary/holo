@@ -15,7 +15,7 @@ class InfoHandler(AbstractInfoHandler):
 	)
 
 	def __init__(self):
-		super().__init__("anilist", "AniList")
+		super().__init__(key="anilist", name="AniList")
 		self.rate_limit_wait = 2
 
 	def get_link(self, link):

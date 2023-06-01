@@ -13,7 +13,7 @@ class ServiceHandler(AbstractServiceHandler):
 	_channel_re = re.compile("youtube.com/playlist\\?list=([\w-]+)", re.I)
 
 	def __init__(self):
-		super().__init__("youtube", "Youtube", False)
+		super().__init__(key="youtube", name="Youtube", is_generic=False)
 
 	# Episode finding
 

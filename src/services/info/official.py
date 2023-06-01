@@ -8,7 +8,7 @@ from .. import AbstractInfoHandler
 
 class InfoHandler(AbstractInfoHandler):
 	def __init__(self) -> None:
-		super().__init__("official", "Official Website")
+		super().__init__(key="official", name="Official Website")
 
 	def get_link(self, link: Link | None) -> str | None:
 		if link is None:

@@ -19,8 +19,11 @@ def main(config: Config, db: DatabaseDatabase):
 		try:
 			service_handler = services.get_service_handler(service)
 
-			streams = db.get_streams(service=service)
+			streams: list[Stream] = db.get_streams(service=service)
 			debug("{} streams found".format(len(streams)))
+
+			if not service_handler:
+				continue
 
 			recent_episodes = service_handler.get_recent_episodes(
 				streams, useragent=config.useragent

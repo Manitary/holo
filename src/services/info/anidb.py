@@ -23,7 +23,7 @@ class InfoHandler(AbstractInfoHandler):
 	_api_base = "http://api.anidb.net:9001/httpapi?client={client}&clientver={ver}&protover=1&request={request}"
 
 	def __init__(self):
-		super().__init__("anidb", "AniDB")
+		super().__init__(key="anidb", name="AniDB")
 		self.rate_limit_wait = 2
 
 	def get_link(self, link):

@@ -39,7 +39,7 @@ class PollHandler(AbstractPollHandler):
 	_poll_results_link = "https://youpoll.me/{id}/r"
 
 	def __init__(self):
-		super().__init__("youpoll")
+		super().__init__(key="youpoll")
 
 	def create_poll(self, title, submit, **kwargs):
 		if not submit:

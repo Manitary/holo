@@ -10,4 +10,4 @@ from services.stream import youtube
 
 class ServiceHandler(youtube.ServiceHandler):
 	def __init__(self):
-		super(youtube.ServiceHandler, self).__init__("anione", "Ani-One", False)
+		super(youtube.ServiceHandler, self).__init__(key="anione", name="Ani-One", is_generic=False)
