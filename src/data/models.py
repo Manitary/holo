@@ -3,8 +3,10 @@ from dataclasses import dataclass, field
 from time import struct_time
 import enum
 import copy
+import logging
 from typing import Self
 
+logger = logging.getLogger(__name__)
 
 class ShowType(enum.IntEnum):
 	UNKNOWN = 0
@@ -62,7 +64,7 @@ class Show(DbEqMixin):
 @dataclass
 class Episode:
 	def __init__(
-		self, number: int, name: str, link: str, date: datetime | struct_time
+		self, number: int, name: str, link: str, date: datetime | struct_time | None
 	) -> None:
 		# Note: arguments are order-sensitive
 		self.number = number
@@ -72,6 +74,8 @@ class Episode:
 			self.date = date
 		elif date:
 			self.date = datetime(*date[:6])  # type: ignore
+		else:
+			self.date = date
 
 	def __str__(self) -> str:
 		return (
@@ -79,6 +83,9 @@ class Episode:
 		)
 
 	def is_live(self, local: bool = False) -> bool:
+		if not self.date:
+			logger.warning("Episode %s does not have a date assigned", self.number)
+			return False
 		now = datetime.now() if local else datetime.utcnow()
 		return now >= self.date
 
@@ -87,7 +94,7 @@ class Episode:
 class EpisodeScore:
 	show_id: int
 	episode: int
-	site_id: int
+	site_id: int | None
 	score: float
 
 
