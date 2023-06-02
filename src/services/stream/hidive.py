@@ -70,7 +70,6 @@ class ServiceHandler(AbstractServiceHandler):
 
 		# Parse html page
 		sections = response.find_all("div", {"data-section": "episodes"})
-		logger.debug("%s", sections)
 		# return [section.a['data-playurl'] for section in sections if section.a]
 		return sections
 
