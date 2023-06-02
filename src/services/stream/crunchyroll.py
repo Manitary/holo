@@ -10,19 +10,49 @@ from .. import AbstractServiceHandler
 
 logger = logging.getLogger(__name__)
 
+
 class CRFeedEpisode(Protocol):
-	title: str
-	language: str
-	crunchyroll_isclip: bool
-	crunchyroll_episodenumber: str
-	link: str
-	published_parsed: struct_time
+	@property
+	def title(self) -> str:
+		...
+
+	@property
+	def language(self) -> str:
+		...
+
+	@property
+	def crunchyroll_isclip(self) -> bool:
+		...
+
+	@property
+	def crunchyroll_episodenumber(self) -> str:
+		...
+
+	@property
+	def link(self) -> str:
+		...
+
+	@property
+	def published_parsed(self) -> struct_time:
+		...
+
 
 class CRFeed(Protocol):
-	bozo: bool
-	namespaces: dict[str, str]
-	feed: CRFeedEpisode
-	entries: list[dict[str, Any]]
+	@property
+	def bozo(self) -> bool:
+		...
+
+	@property
+	def namespaces(self) -> dict[str, str]:
+		...
+
+	@property
+	def feed(self) -> CRFeedEpisode:
+		...
+
+	@property
+	def entries(self) -> list[dict[str, Any]]:
+		...
 
 	def get(self, key: str, default: Any) -> Any:
 		return self.__dict__.get(key, default)
@@ -43,7 +73,9 @@ class ServiceHandler(AbstractServiceHandler):
 	def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Any]:
 		logger.info("Getting live episodes for Crunchyroll/%s", stream.show_key)
 		episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
-
+		if not episode_datas:
+			logger.debug("  No episodes found")
+			return []
 		# Check data validity and digest
 		episodes: list[Episode] = []
 		for episode_data in episode_datas:
@@ -55,12 +87,7 @@ class ServiceHandler(AbstractServiceHandler):
 						"Problem digesting episode for Crunchyroll/%s", stream.show_key
 					)
 
-		if len(episode_datas) > 0:
-			logger.debug(
-				"  %s episodes found, %s valid", len(episode_datas), len(episodes)
-			)
-		else:
-			logger.debug("  No episodes found")
+		logger.debug("  %s episodes found, %s valid", len(episode_datas), len(episodes))
 		return episodes
 
 	def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[Any]:
