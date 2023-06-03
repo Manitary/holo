@@ -140,7 +140,7 @@ def process_remote_offset(url: str) -> tuple[str, int]:
 def process_show_streams(
 	db: DatabaseDatabase, show_id: int, streams: dict[str, str]
 ) -> None:
-	for service_key, url in streams:
+	for service_key, url in streams.items():
 		if not url:
 			continue
 		try:
@@ -189,5 +189,5 @@ def process_show_aliases(
 ) -> None:
 	for alias in aliases:
 		if alias:
-			db.add_alias(show=show_id, alias=alias)
+			db.add_alias(show_id=show_id, alias=alias)
 	logger.info("Added %s alias%s", len(aliases), "es" if len(aliases) > 1 else "")
