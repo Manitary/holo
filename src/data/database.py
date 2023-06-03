@@ -232,12 +232,12 @@ class DatabaseDatabase:
 
 		self.q.execute(
 			"""CREATE TABLE IF NOT EXISTS Polls (
-			show		INTEGER NOT NULL,
-			episode		INTEGER NOT NULL,
+			show			INTEGER NOT NULL,
+			episode			INTEGER NOT NULL,
 			poll_service	INTEGER NOT NULL,
-			poll_id		TEXT NOT NULL,
-			timestamp	INTEGER NOT NULL,
-			score		REAL,
+			poll_id			TEXT NOT NULL,
+			timestamp		INTEGER NOT NULL,
+			score			REAL,
 			FOREIGN KEY(show) REFERENCES Shows(id),
 			FOREIGN KEY(poll_service) REFERENCES PollSites(id),
 			UNIQUE(show, episode) ON CONFLICT REPLACE
@@ -1110,8 +1110,6 @@ def from_show_type(show_type: ShowType | None) -> int | None:
 
 
 ## Collations
-
-
 def _collate_alphanum(str1: str, str2: str) -> int:
 	str1 = _alphanum_convert(str1)
 	str2 = _alphanum_convert(str2)
