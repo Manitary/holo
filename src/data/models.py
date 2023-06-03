@@ -241,7 +241,7 @@ class UnprocessedShow:
 class UnprocessedStream:
 	service_key: str
 	show_key: str
-	show_id: int
+	show_id: int | None
 	name: str
-	remote_offset: int
-	display_offset: int
+	remote_offset: int = 0
+	display_offset: int = 0

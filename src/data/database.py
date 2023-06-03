@@ -639,10 +639,11 @@ class DatabaseDatabase:
 		return Link(*link)
 
 	@db_error_default(False)
-	def has_link(self, site_key: str, key: str, show: Show | None = None) -> bool:
+	def has_link(self, site_key: str, key: str, show: int | None = None) -> bool:
 		site = self.get_link_site(key=site_key)
 		if not site:
 			logger.warning("Cannot find site with key %s", site_key)
+			return False
 		if show:
 			self.q.execute(
 				"SELECT count(*) FROM Links WHERE site = ? AND site_key = ? AND show = ?",
@@ -804,6 +805,7 @@ class DatabaseDatabase:
 
 		if commit:
 			self.commit()
+
 		return show_id
 
 	@db_error
@@ -1069,9 +1071,10 @@ class DatabaseDatabase:
 		return polls
 
 	# Searching
-	@db_error_default(set(empty_list_show))
-	def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[Show]:
-		shows: set[Show] = set()
+	empty_set_int: set[int] = set()
+	@db_error_default(empty_set_int)
+	def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[int]:
+		shows: set[int] = set()
 		for name in names:
 			logger.debug("Searching shows by name: %s", name)
 			if exact:
