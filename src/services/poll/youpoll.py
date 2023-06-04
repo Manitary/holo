@@ -105,10 +105,3 @@ class PollHandler(AbstractPollHandler):
 				f"Couldn't get scores for poll {self.get_results_link(poll)} (parsing error)"
 			)
 			return None
-
-	@staticmethod
-	def convert_score_str(score):
-		if score is None:
-			return "----"
-		else:
-			return str(score)

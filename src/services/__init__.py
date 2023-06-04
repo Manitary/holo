@@ -9,7 +9,7 @@ from functools import lru_cache, wraps
 from json import JSONDecodeError
 from time import perf_counter, sleep
 from types import ModuleType
-from typing import Any, Iterable, Self, Type, TypeVar
+from typing import Any, Callable, Iterable, Self, Type, TypeVar
 from xml.etree import ElementTree as xml_parser
 
 import feedparser
@@ -17,10 +17,13 @@ import requests
 from bs4 import BeautifulSoup
 
 from config import Config
-from data.models import (Episode, Link, LinkSite, Poll, Show, Stream,
-                         UnprocessedShow, UnprocessedStream)
+from data.models import (
+	Episode, Link, LinkSite, Poll, Service, Show, Stream,
+	UnprocessedShow, UnprocessedStream)
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 # Common
 
@@ -73,12 +76,12 @@ def import_all_services(
 ##############
 
 
-def rate_limit(wait_length):
+def rate_limit(wait_length: float) -> Callable[[Callable[..., T]], Callable[..., T]]:
 	last_time = 0
 
-	def decorate(f):
+	def decorate(f: Callable[..., T]) -> Callable[..., T]:
 		@wraps(f)
-		def rate_limited(*args, **kwargs):
+		def rate_limited(*args: Any, **kwargs: Any) -> Any:
 			nonlocal last_time
 			diff = perf_counter() - last_time
 			if diff < wait_length:
@@ -343,7 +346,7 @@ def get_service_handlers() -> dict[str, AbstractServiceHandler]:
 
 
 def get_service_handler(
-	service: AbstractServiceHandler | None = None, key: str | None = None
+	service: Service | None = None, key: str | None = None
 ) -> AbstractServiceHandler | None:
 	"""
 	Returns an instance of a service handler representing the given service or service key.
@@ -538,6 +541,12 @@ class AbstractPollHandler(AbstractHandler, Requestable, ABC):
 		:return: the score on a 1-10 scale
 		"""
 		return None
+
+	@staticmethod
+	def convert_score_str(score: float | None) -> str:
+		if not score:
+			return "----"
+		return str(score)
 
 
 _poll_sites: dict[str, AbstractPollHandler] = {}
