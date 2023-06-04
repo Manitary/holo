@@ -507,7 +507,7 @@ def get_link_handler(
 @dataclass(kw_only=True, eq=False)
 class AbstractPollHandler(AbstractHandler, Requestable, ABC):
 	@abstractmethod
-	def create_poll(self, title: str, submit: bool) -> str | None:
+	def create_poll(self, title: str, submit: bool, **kwargs: Any) -> str | None:
 		"""
 		Create a new Poll.
 		:param title: title of this poll
