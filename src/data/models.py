@@ -75,7 +75,7 @@ class Episode:
 		elif date:
 			self.date = datetime(*date[:6])  # type: ignore
 		else:
-			self.date = date
+			self.date = None
 
 	def __str__(self) -> str:
 		return (
