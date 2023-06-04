@@ -1,24 +1,24 @@
 import logging
+
 import praw
 from praw.models import Submission
+
 from config import Config
 
 logger = logging.getLogger(__name__)
 
 # Initialization
 
-_r = None
-_config = None
+_r: praw.Reddit | None = None
+_config: Config | None = None
 
-
-	
 
 def init_reddit(config: Config) -> None:
 	global _config
 	_config = config
 
 
-def _connect_reddit():
+def _connect_reddit() -> praw.Reddit | None:
 	if _config is None:
 		logger.error("Can't connect to reddit without a config")
 		return None
@@ -33,11 +33,12 @@ def _connect_reddit():
 	)
 
 
-def _ensure_connection():
+def _ensure_connection() -> bool:
 	global _r
 	if _r is None:
 		_r = _connect_reddit()
 	return _r is not None
+
 
 class RedditHolo:
 	def __init__(self, config: Config) -> None:
@@ -51,47 +52,52 @@ class RedditHolo:
 		)
 		self._config: Config = config
 
-	def submit_text_post(self, subreddit: str, title: str, body: str) -> Submission | None:
+	def submit_text_post(
+		self, subreddit: str, title: str, body: str
+	) -> Submission | None:
 		try:
 			logger.info("Checking availability of flair %s", self._config.post_flair_id)
 			flair_ids: dict[str, str | bool] = [
 				ft["flair_template_id"]
-				for ft in self._reddit.subreddit(subreddit).flair.link_templates.user_selectable() # type: ignore
+				for ft in self._reddit.subreddit(subreddit).flair.link_templates.user_selectable()  # type: ignore
 			]
 			if self._config.post_flair_id in flair_ids:
-				flair_id, flair_text = self._config.post_flair_id, self._config.post_flair_text
+				flair_id, flair_text = (
+					self._config.post_flair_id,
+					self._config.post_flair_text,
+				)
 			else:
 				logger.warning("Flair not selectable, flairing will be disabled")
 				flair_id, flair_text = None, None
 
 			logger.info("Submitting post to %s", subreddit)
-			new_post: Submission = self._reddit.subreddit(subreddit).submit( # type: ignore
+			new_post: Submission = self._reddit.subreddit(subreddit).submit(  # type: ignore
 				title,
 				selftext=body,
 				flair_id=flair_id,
 				flair_text=flair_text,
 				send_replies=False,
 			)
-			return new_post # type: ignore
-		except:
+			return new_post  # type: ignore
+		except Exception:
 			logger.exception("Failed to submit text post")
 			return None
 
 	def edit_text_post(self, url: str, body: str) -> Submission | None:
 		try:
 			logger.info("Editing post %s", url)
-			post: Submission = get_text_post(url) # type: ignore
-			post.edit(body=body) # type: ignore
+			post: Submission = get_text_post(url)  # type: ignore
+			post.edit(body=body)  # type: ignore
 			return post
-		except:
+		except Exception:
 			logger.exception("Failed to submit text post")
 			return None
 
 	def get_text_post(self, url: str) -> Submission | None:
 		try:
-			new_post: Submission = self._reddit.submission(url=url) # type: ignore
-			return new_post # type: ignore
-		except:
+			new_post: Submission = self._reddit.submission(url=url)  # type: ignore
+			return new_post  # type: ignore
+		except Exception:
 			logger.exception("Failed to retrieve text post")
 			return None
 
@@ -99,10 +105,10 @@ class RedditHolo:
 # Thing doing
 
 
-def submit_text_post(subreddit, title, body):
+def submit_text_post(subreddit: str, title: str, body: str) -> Submission | None:
 	_ensure_connection()
 	try:
-		info("Checking availability of flair {_config.post_flair_id}")
+		logger.info("Checking availability of flair %s", _config.post_flair_id)
 		flair_ids = [
 			ft["flair_template_id"]
 			for ft in _r.subreddit(subreddit).flair.link_templates.user_selectable()
@@ -110,10 +116,10 @@ def submit_text_post(subreddit, title, body):
 		if _config.post_flair_id in flair_ids:
 			flair_id, flair_text = _config.post_flair_id, _config.post_flair_text
 		else:
-			warning("Flair not selectable, flairing will be disabled")
+			logger.warning("Flair not selectable, flairing will be disabled")
 			flair_id, flair_text = None, None
 
-		info("Submitting post to {}".format(subreddit))
+		logger.info("Submitting post to %s", subreddit)
 		new_post = _r.subreddit(subreddit).submit(
 			title,
 			selftext=body,
@@ -122,30 +128,30 @@ def submit_text_post(subreddit, title, body):
 			send_replies=False,
 		)
 		return new_post
-	except:
-		exception("Failed to submit text post")
+	except Exception:
+		logger.exception("Failed to submit text post")
 		return None
 
 
-def edit_text_post(url, body):
+def edit_text_post(url: str, body: str) -> Submission | None:
 	_ensure_connection()
 	try:
-		info(f"Editing post {url}")
+		logger.info("Editing post %s", url)
 		post = get_text_post(url)
 		post.edit(body)
 		return post
-	except:
-		exception("Failed to submit text post")
+	except Exception:
+		logger.exception("Failed to submit text post")
 		return None
 
 
-def get_text_post(url):
+def get_text_post(url: str) -> Submission | None:
 	_ensure_connection()
 	try:
 		new_post = _r.submission(url=url)
 		return new_post
-	except:
-		exception("Failed to retrieve text post")
+	except Exception:
+		logger.exception("Failed to retrieve text post")
 		return None
 
 
