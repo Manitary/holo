@@ -117,7 +117,7 @@ def _process_new_episode(
     logger.debug(episode)
 
     logger.debug("  Date: %s", episode.date)
-    logger.debug("  Is live: %s", episode.is_live)
+    logger.debug("  Is live: %s", episode.is_live())
     # if episode.is_live and (episode.date is None or episode.date.date() > yesterday):
     if episode.is_live():
         # Adjust episode to internal numbering
