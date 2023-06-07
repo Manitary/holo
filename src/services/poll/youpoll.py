@@ -1,10 +1,15 @@
-from logging import debug, info, warning, error
-from datetime import datetime, timezone
-import requests
+import logging
 import re
+from typing import Any
+
+import requests
+from data.models import Poll
 
 from .. import AbstractPollHandler
-from data.models import Poll
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_TIMEOUT = 60
 
 
 class PollHandler(AbstractPollHandler):
@@ -34,14 +39,14 @@ class PollHandler(AbstractPollHandler):
 		"responses-input": "",
 	}
 
-	_poll_id_re = re.compile("youpoll.me/(\d+)", re.I)
+	_poll_id_re = re.compile(r"youpoll\.me\/(\d+)", re.I)
 	_poll_link = "https://youpoll.me/{id}/"
 	_poll_results_link = "https://youpoll.me/{id}/r"
 
-	def __init__(self):
+	def __init__(self) -> None:
 		super().__init__(key="youpoll")
 
-	def create_poll(self, title, submit, **kwargs):
+	def create_poll(self, title: str, submit: bool, **kwargs: Any) -> str | None:
 		if not submit:
 			return None
 		# headers = _poll_post_headers
@@ -50,31 +55,42 @@ class PollHandler(AbstractPollHandler):
 		data["poll-1[question]"] = title
 		# resp = requests.post(_poll_post_url, data = data, headers = headers, **kwargs)
 		try:
-			resp = requests.post(self._poll_post_url, data=data, **kwargs)
-		except:
-			error("Could not create poll (exception in POST)")
+			response = requests.post(
+				self._poll_post_url, data=data, **kwargs, timeout=DEFAULT_TIMEOUT
+			)
+		except Exception:
+			logger.error("Could not create poll (exception in POST)")
 			return None
 
-		if resp.ok:
-			match = self._poll_id_re.search(resp.url)
-			return match.group(1)
-		else:
-			error("Could not create poll (resp !OK)")
+		if not response.ok:
+			logger.error("Could not create poll (resp !OK)")
 			return None
 
-	def get_link(self, poll):
+		match = self._poll_id_re.search(response.url)
+		if not match:
+			logger.error("Could not get poll ID")
+			return None
+
+		return match.group(1)
+
+	def get_link(self, poll: Poll) -> str:
 		return self._poll_link.format(id=poll.id)
 
-	def get_results_link(self, poll):
+	def get_results_link(self, poll: Poll) -> str:
 		return self._poll_results_link.format(id=poll.id)
 
-	def get_score(self, poll):
-		debug(f"Getting score for show {poll.show_id} / episode {poll.episode}")
+	def get_score(self, poll: Poll) -> float | None:
+		logger.debug(
+			"Getting score for show %d / episode %d", poll.show_id, poll.episode
+		)
 		try:
 			response = self.request_html(url=self.get_results_link(poll))
-		except:
-			error(
-				f"Couldn't get scores for poll {self.get_results_link(poll)} (query error)"
+			if not response:
+				raise IOError()
+		except Exception:
+			logger.error(
+				"Couldn't get scores for poll %s (query error)",
+				self.get_results_link(poll),
 			)
 			return None
 
@@ -84,24 +100,25 @@ class PollHandler(AbstractPollHandler):
 			num_votes_str = response.find("span", class_="admin-total-votes").text
 			num_votes = int(num_votes_str.replace(",", ""))
 			if num_votes == 0:
-				warning("No vote recorded, no score returned")
+				logger.warning("No vote recorded, no score returned")
 				return None
-			values = dict()
+			values: dict[str, float] = {}
 			for div in divs:
 				label = div.find("span", class_="basic-option-title").text
 				if label not in self.OPTIONS:
-					error(f"Found unexpected label {label}, aborted")
+					logger.error("Found unexpected label %s, aborted", label)
 					return None
 				value_text = div.find("span", class_="basic-option-percent").text
 				score = float(value_text.strip("%")) / 100
 				values[label] = score
 			results = [values[k] for k in self.OPTIONS]
-			info(f"Results: {str(results)}")
-			total = sum([r * s for r, s in zip(results, range(5, 0, -1))])
+			logger.info("Results: %s", results)
+			total = sum(votes * score for score, votes in enumerate(results[::-1], 1))
 			total = round(total, 2)
 			return total
-		except:
-			error(
-				f"Couldn't get scores for poll {self.get_results_link(poll)} (parsing error)"
+		except Exception:
+			logger.error(
+				"Couldn't get scores for poll %s (parsing error)",
+				self.get_results_link(poll),
 			)
 			return None

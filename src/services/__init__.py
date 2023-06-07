@@ -18,8 +18,16 @@ from bs4 import BeautifulSoup
 
 from config import Config
 from data.models import (
-	Episode, Link, LinkSite, Poll, Service, Show, Stream,
-	UnprocessedShow, UnprocessedStream)
+	Episode,
+	Link,
+	LinkSite,
+	Poll,
+	Service,
+	Show,
+	Stream,
+	UnprocessedShow,
+	UnprocessedStream,
+)
 
 logger = logging.getLogger(__name__)
 

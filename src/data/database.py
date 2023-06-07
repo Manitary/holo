@@ -1,27 +1,30 @@
 from __future__ import annotations
+
 import logging
-import sqlite3
 import re
-from functools import wraps, lru_cache
-from typing import Any, Callable, TypeVar
+import sqlite3
 from datetime import datetime, timezone
+from functools import lru_cache, wraps
+from typing import Any, Callable, TypeVar
+
 from unidecode import unidecode
+
 from services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
 
 from .models import (
+	Episode,
+	EpisodeScore,
+	Link,
+	LinkSite,
+	LiteStream,
+	Poll,
+	PollSite,
+	Service,
 	Show,
 	ShowType,
 	Stream,
-	LiteStream,
-	Service,
-	LinkSite,
-	Link,
-	Episode,
-	EpisodeScore,
-	UnprocessedStream,
 	UnprocessedShow,
-	PollSite,
-	Poll,
+	UnprocessedStream,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,7 +59,7 @@ def db_error(f: Callable[..., Any]) -> Callable[..., bool]:
 		try:
 			f(*args, **kwargs)
 			return True
-		except:
+		except Exception:
 			logger.exception("Database exception thrown")
 			return False
 
@@ -74,7 +77,7 @@ def db_error_default(
 			nonlocal value
 			try:
 				return f(*args, **kwargs)
-			except:
+			except Exception:
 				logger.exception("Database exception thrown")
 				return value
 
@@ -1072,6 +1075,7 @@ class DatabaseDatabase:
 
 	# Searching
 	empty_set_int: set[int] = set()
+
 	@db_error_default(empty_set_int)
 	def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[int]:
 		shows: set[int] = set()
@@ -1132,7 +1136,8 @@ _romanization_o = re.compile("\bwo\b")
 def _alphanum_convert(s: str) -> str:
 	# TODO: punctuation is important for some shows to distinguish between seasons (ex. K-On! and K-On!!)
 	# 6/28/16: The purpose of this function is weak collation;
-	# use of punctuation to distinguish between seasons can be done later when handling multiple found shows.
+	# use of punctuation to distinguish between seasons can be done later
+	# when handling multiple found shows.
 
 	# Characters to words
 	s = s.replace("&", "and")
