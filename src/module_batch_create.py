@@ -1,20 +1,21 @@
-from logging import debug, info, warning, error
-from datetime import date, timedelta
+import logging
 
-import services
-from data.models import Stream, Episode
 import reddit
-
+from config import Config
+from data.database import DatabaseDatabase
+from data.models import Episode, Show, Stream
 from module_find_episodes import (
 	_create_reddit_post,
 	_edit_reddit_post,
 	_format_post_text,
 )
 
-from config import Config
-from data.database import DatabaseDatabase
+logger = logging.getLogger(__name__)
 
-def main(config: Config, db: DatabaseDatabase, show_name: str, episode_count: str) -> None:
+
+def main(
+	config: Config, db: DatabaseDatabase, show_name: str, episode_count: str
+) -> None:
 	int_episode_count = int(episode_count)
 	reddit.init_reddit(config)
 
@@ -23,18 +24,18 @@ def main(config: Config, db: DatabaseDatabase, show_name: str, episode_count: st
 		raise IOError(f"Show {show_name} does not exist!")
 	stream = Stream.from_show(show)
 
-	post_urls = list()
+	post_urls: list[str] = []
 	for i in range(1, int_episode_count + 1):
-		int_episode = Episode(i, None, None, None)
+		int_episode = Episode(number=i, name="", link="", date=None)
 		post_url = _create_reddit_post(
 			config, db, show, stream, int_episode, submit=not config.debug
 		)
-		info("  Post URL: {}".format(post_url))
-		if post_url is not None:
-			post_url = post_url.replace("http:", "https:")
-			db.add_episode(show, int_episode.number, post_url)
-		else:
-			error("  Episode not submitted")
+		logger.info("  Post URL: %s", post_url)
+		if not post_url:
+			logger.error("  Episode not submitted")
+			continue
+		post_url = post_url.replace("http:", "https:")
+		db.add_episode(show, int_episode.number, post_url)
 		post_urls.append(post_url)
 
 	for editing_episode in db.get_episodes(show):
@@ -49,33 +50,35 @@ def main(config: Config, db: DatabaseDatabase, show_name: str, episode_count: st
 		)
 
 	megathread_title, megathread_body = _create_megathread_content(
-		config, db, show, stream, episode_count
+		config, db, show, stream, int_episode_count
 	)
 
 	if not config.debug:
 		megathread_post = reddit.submit_text_post(
-			config.subreddit, megathread_title, megathread_body
+			config.subreddit or "", megathread_title, megathread_body
 		)
 	else:
 		megathread_post = None
 
 	if megathread_post is not None:
-		debug("Post successful")
+		logger.debug("Post successful")
 		megathread_url = reddit.get_shortlink_from_id(megathread_post.id).replace(
 			"http:", "https:"
 		)
 	else:
-		error("Failed to submit post")
+		logger.error("Failed to submit post")
 		megathread_url = None
 
 	db.set_show_enabled(show, False, commit=not config.debug)
 
 	for i, url in enumerate(post_urls):
-		info(f"Episode {i}: {url}")
-	info(f"Megathread: {megathread_url}")
+		logger.info("Episode %d: %s", i, url)
+	logger.info("Megathread: %s", megathread_url)
 
 
-def _create_megathread_content(config, db, show, stream, episode_count):
+def _create_megathread_content(
+	config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode_count: int
+) -> tuple[str, str]:
 	title = _create_megathread_title(config, show, episode_count)
 	title = _format_post_text(
 		config,
@@ -83,10 +86,10 @@ def _create_megathread_content(config, db, show, stream, episode_count):
 		title,
 		config.post_formats,
 		show,
-		Episode(episode_count, None, None, None),
+		Episode(number=episode_count, name="", link="", date=None),
 		stream,
 	)
-	info("Title:\n" + title)
+	logger.info("Title:\n%s", title)
 
 	body = _format_post_text(
 		config,
@@ -94,17 +97,16 @@ def _create_megathread_content(config, db, show, stream, episode_count):
 		config.batch_thread_post_body,
 		config.post_formats,
 		show,
-		Episode(episode_count, None, None, None),
+		Episode(number=episode_count, name="", link="", date=None),
 		stream,
 	)
-	info("Body:\n" + body)
+	logger.info("Body:\n%s", body)
 	return title, body
 
 
-def _create_megathread_title(config, show, episode_count):
+def _create_megathread_title(config: Config, show: Show, episode_count: int) -> str:
 	if show.name_en:
 		title = config.batch_thread_post_title_with_en
 	else:
 		title = config.batch_thread_post_title
-
-	return title
+	return title or ""
