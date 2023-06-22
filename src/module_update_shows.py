@@ -2,11 +2,13 @@ import logging
 from datetime import datetime, timedelta
 
 import services
+from config import Config
+from data.database import DatabaseDatabase
 
 logger = logging.getLogger(__name__)
 
 
-def main(config, db, **kwargs):
+def main(config: Config, db: DatabaseDatabase) -> None:
     # Find data not provided by the edit module
     _check_missing_stream_info(config, db, update_db=not config.debug)
     # Check for new show scores
@@ -20,7 +22,9 @@ def main(config, db, **kwargs):
     _disable_finished_shows(config, db, update_db=not config.debug)
 
 
-def _check_show_lengths(config, db, update_db=True):
+def _check_show_lengths(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Checking show lengths")
 
     shows = db.get_shows(missing_length=True)
@@ -59,7 +63,9 @@ def _check_show_lengths(config, db, update_db=True):
                 logger.warning("Debug enabled, not updating database")
 
 
-def _disable_finished_shows(config, db, update_db=True):
+def _disable_finished_shows(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Checking for disabled shows")
 
     shows = db.get_shows()
@@ -79,7 +85,9 @@ def _disable_finished_shows(config, db, update_db=True):
         db.save()
 
 
-def _check_missing_stream_info(config, db, update_db=True):
+def _check_missing_stream_info(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Checking for missing stream info")
 
     streams = db.get_streams(missing_name=True)
@@ -114,7 +122,9 @@ def _check_missing_stream_info(config, db, update_db=True):
         db.commit()
 
 
-def _check_new_episode_scores(config, db, update_db):
+def _check_new_episode_scores(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Checking for new episode scores")
 
     shows = db.get_shows(enabled=True)
@@ -156,7 +166,9 @@ def _check_new_episode_scores(config, db, update_db):
                 logger.info("  Already has scores, ignoring")
 
 
-def _record_poll_scores(config, db, update_db):
+def _record_poll_scores(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     polls = db.get_polls(missing_score=True)
     handler = services.get_default_poll_handler()
     logger.info("Record scores for service %s", handler.key)

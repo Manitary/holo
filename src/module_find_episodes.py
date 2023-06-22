@@ -1,13 +1,16 @@
 import logging
+from typing import Any
 
 import reddit
 import services
-from data.models import Stream
+from config import Config
+from data.database import DatabaseDatabase
+from data.models import Episode, Show, Stream
 
 logger = logging.getLogger(__name__)
 
 
-def main(config, db, **kwargs):
+def main(config: Config, db: DatabaseDatabase) -> None:
     reddit.init_reddit(config)
 
     has_new_episode = []
@@ -102,7 +105,9 @@ def main(config, db, **kwargs):
 # yesterday = date.today() - timedelta(days=1)
 
 
-def _process_new_episode(config, db, show, stream, episode):
+def _process_new_episode(
+    config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode: Episode
+) -> bool:
     logger.debug("Processing new episode")
     logger.debug("%s", episode)
 
@@ -178,7 +183,14 @@ def _process_new_episode(config, db, show, stream, episode):
     return False
 
 
-def _create_reddit_post(config, db, show, stream, episode, submit=True):
+def _create_reddit_post(
+    config: Config,
+    db: DatabaseDatabase,
+    show: Show,
+    stream: Stream,
+    episode: Episode,
+    submit: bool = True,
+) -> str | None:
     display_episode = stream.to_display_episode(episode)
 
     title, body = _create_post_contents(config, db, show, stream, display_episode)
@@ -192,7 +204,15 @@ def _create_reddit_post(config, db, show, stream, episode, submit=True):
     return None
 
 
-def _edit_reddit_post(config, db, show, stream, episode, url, submit=True):
+def _edit_reddit_post(
+    config: Config,
+    db: DatabaseDatabase,
+    show: Show,
+    stream: Stream,
+    episode: Episode,
+    url: str,
+    submit: bool = True,
+) -> None:
     display_episode = stream.to_display_episode(episode)
 
     _, body = _create_post_contents(
@@ -203,7 +223,14 @@ def _edit_reddit_post(config, db, show, stream, episode, url, submit=True):
     return None
 
 
-def _create_post_contents(config, db, show, stream, episode, quiet=False):
+def _create_post_contents(
+    config: Config,
+    db: DatabaseDatabase,
+    show: Show,
+    stream: Stream,
+    episode: Episode,
+    quiet: bool = False,
+) -> tuple[str, str]:
     title = _create_post_title(config, show, episode)
     title = _format_post_text(
         config, db, title, config.post_formats, show, episode, stream
@@ -217,7 +244,15 @@ def _create_post_contents(config, db, show, stream, episode, quiet=False):
     return title, body
 
 
-def _format_post_text(config, db, text, formats, show, episode, stream):
+def _format_post_text(
+    config: Config,
+    db: DatabaseDatabase,
+    text: str,
+    formats: dict[str, str],
+    show: Show,
+    episode: Episode,
+    stream: Stream,
+) -> str:
     # TODO: change to a more block-based system (can exclude blocks without content)
     if "{spoiler}" in text:
         text = safe_format(text, spoiler=_gen_text_spoiler(formats, show))
@@ -236,7 +271,7 @@ def _format_post_text(config, db, text, formats, show, episode, stream):
             text, poll=_gen_text_poll(db, config, formats, show, episode)
         )
 
-    episode_name = ": {}".format(episode.name) if episode.name else ""
+    episode_name = f": {episode.name}" if episode.name else ""
     episode_alt_number = (
         ""
         if stream.remote_offset == 0
@@ -253,7 +288,7 @@ def _format_post_text(config, db, text, formats, show, episode, stream):
     return text.strip()
 
 
-def _create_post_title(config, show, episode):
+def _create_post_title(config: Config, show: Show, episode: Episode) -> str:
     if show.name_en:
         title = config.post_title_with_en
     else:
@@ -267,7 +302,7 @@ def _create_post_title(config, show, episode):
 # Generating text parts
 
 
-def _gen_text_spoiler(formats, show):
+def _gen_text_spoiler(formats: dict[str, str], show: Show) -> str:
     logger.debug(
         "Generating spoiler text for show %s, spoiler is %s", show, show.has_source
     )
@@ -276,9 +311,9 @@ def _gen_text_spoiler(formats, show):
     return ""
 
 
-def _gen_text_streams(db, formats, show):
+def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
     logger.debug("Generating stream text for show %s", show)
-    stream_texts = list()
+    stream_texts: list[str] = []
 
     streams = db.get_streams(show=show)
     for stream in streams:
@@ -308,11 +343,13 @@ def _gen_text_streams(db, formats, show):
         return "*None*"
 
 
-def _gen_text_links(db, formats, show):
+def _gen_text_links(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
     logger.debug("Generating stream text for show %s", show)
     links = db.get_links(show=show)
-    link_texts = list()
-    link_texts_bottom = list()  # for links that come last, e.g. official and subreddit
+    link_texts: list[str] = []
+    link_texts_bottom: list[
+        str
+    ] = []  # for links that come last, e.g. official and subreddit
     for link in links:
         site = db.get_link_site(id=link.site)
         if site.enabled:
@@ -335,7 +372,9 @@ def _gen_text_links(db, formats, show):
     return "\n".join(link_texts) + "\n" + "\n".join(link_texts_bottom)
 
 
-def _gen_text_discussions(db, formats, show, stream):
+def _gen_text_discussions(
+    db: DatabaseDatabase, formats: dict[str, str], show: Show, stream: Stream
+) -> str:
     episodes = db.get_episodes(show)
     logger.debug("Num previous episodes: %d", len(episodes))
     N_LINES = 13
@@ -385,14 +424,20 @@ def _gen_text_discussions(db, formats, show, stream):
         return formats["discussion_none"]
 
 
-def _gen_text_aliases(db, formats, show):
+def _gen_text_aliases(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
     aliases = db.get_aliases(show)
     if len(aliases) == 0:
         return ""
     return safe_format(formats["aliases"], aliases=", ".join(aliases))
 
 
-def _gen_text_poll(db, config, formats, show, episode):
+def _gen_text_poll(
+    db: DatabaseDatabase,
+    config: Config,
+    formats: dict[str, str],
+    show: Show,
+    episode: Episode,
+) -> str:
     handler = services.get_default_poll_handler()
     title = config.post_poll_title.format(show=show.name, episode=episode.number)
 
@@ -419,12 +464,12 @@ def _gen_text_poll(db, config, formats, show, episode):
 # Helpers
 
 
-class _SafeDict(dict):
-    def __missing__(self, key):
-        return "{" + key + "}"
+class _SafeDict(dict[str, Any]):
+    def __missing__(self, key: str) -> str:
+        return f"{{{key}}}"
 
 
-def safe_format(s, **kwargs):
+def safe_format(s: str, **kwargs: Any) -> str:
     """
     A safer version of the default str.format(...) function.
     Ignores unused keyword arguments and unused '{...}' placeholders instead of throwing a KeyError.

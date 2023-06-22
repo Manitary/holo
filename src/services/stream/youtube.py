@@ -1,8 +1,9 @@
 import logging
 import re
 from datetime import datetime
+from typing import Any, Iterable
 
-from data.models import Episode
+from data.models import Episode, Stream, UnprocessedStream
 
 from .. import AbstractServiceHandler
 
@@ -13,14 +14,14 @@ class ServiceHandler(AbstractServiceHandler):
     _playlist_api_query = "https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId={id}&key={key}"
     _videos_api_query = "https://youtube.googleapis.com/youtube/v3/videos?part=status&part=snippet&hl=en&id={id}&key={key}"
     _channel_url = "https://www.youtube.com/playlist?list={id}"
-    _channel_re = re.compile("youtube.com/playlist\\?list=([\w-]+)", re.I)
+    _channel_re = re.compile(r"youtube.com/playlist\\?list=([\w-]+)", re.I)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("youtube", "Youtube", False)
 
     # Episode finding
 
-    def get_all_episodes(self, stream, **kwargs):
+    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
         logger.info("Getting live episodes for Youtube/%s", stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
@@ -45,16 +46,16 @@ class ServiceHandler(AbstractServiceHandler):
             logger.debug("  No episodes found")
         return episodes
 
-    def _get_feed_episodes(self, show_key, **kwargs):
+    def _get_feed_episodes(self, show_key: str, **kwargs: Any):
         url = self._get_feed_url(show_key)
         if url is None:
-            logger.error(f"Cannot get feed url for {self.name}/{show_key}")
+            logger.error("Cannot get feed url for %s/%s", self.name, show_key)
 
         # Request channel information
         response = self.request(url, json=True, **kwargs)
         if response is None:
             logger.error("Cannot get episode feed for %s/%s", self.name, show_key)
-            return list()
+            return []
 
         # Extract videos ids and build new query for all videos
         if not _verify_feed(response):
@@ -70,27 +71,27 @@ class ServiceHandler(AbstractServiceHandler):
         response = self.request(url, json=True, **kwargs)
         if response is None:
             logger.error("Cannot get video information for %s/%s", self.name, show_key)
-            return list()
+            return []
 
         # Return feed
         if not _verify_feed(response):
             logger.warning(
                 "Parsed feed could not be verified, may have unexpected results"
             )
-        return response.get("items", list())
+        return response.get("items", [])
 
-    def _get_feed_url(self, show_key):
+    def _get_feed_url(self, show_key: str) -> str | None:
         # Show key is the channel ID
         if "api_key" not in self.config or not self.config["api_key"]:
             logger.error("  Missing API key for access to Youtube channel")
             return None
         api_key = self.config["api_key"]
-        if show_key is not None:
+        if show_key:
             return self._playlist_api_query.format(id=show_key, key=api_key)
         else:
             return None
 
-    def _get_videos_url(self, video_ids):
+    def _get_videos_url(self, video_ids: Iterable[str]) -> str | None:
         # Videos ids is a list of all videos in feed
         if "api_key" not in self.config or not self.config["api_key"]:
             logger.error("  Missing API key for access to Youtube channel")
@@ -101,18 +102,18 @@ class ServiceHandler(AbstractServiceHandler):
         else:
             return None
 
-    def get_stream_info(self, stream, **kwargs):
+    def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
         # Can't trust consistent stream naming, ignored
         return None
 
-    def get_seasonal_streams(self, **kwargs):
+    def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
         # What is this for again ?
-        return list()
+        return []
 
-    def get_stream_link(self, stream):
+    def get_stream_link(self, stream: Stream) -> str:
         return self._channel_url.format(id=stream.show_key)
 
-    def extract_show_key(self, url):
+    def extract_show_key(self, url: str) -> str | None:
         match = self._channel_re.search(url)
         if match:
             return match.group(1)
@@ -122,7 +123,7 @@ class ServiceHandler(AbstractServiceHandler):
 # Episode feeds format
 
 
-def _verify_feed(feed):
+def _verify_feed(feed) -> bool:
     logger.debug("Verifying feed")
     if not (
         feed["kind"] == "youtube#playlistItemListResponse"
@@ -159,7 +160,7 @@ _num_extractors = [
 ]
 
 
-def _is_valid_episode(feed_episode, show_id):
+def _is_valid_episode(feed_episode, show_id) -> bool:
     if feed_episode["status"]["privacyStatus"] == "private":
         logger.info("  Video was excluded (is private)")
         return False
@@ -179,7 +180,7 @@ def _is_valid_episode(feed_episode, show_id):
     return True
 
 
-def _digest_episode(feed_episode):
+def _digest_episode(feed_episode) -> Episode | None:
     _video_url = "https://www.youtube.com/watch?v={video_id}"
     snippet = feed_episode["snippet"]
 
@@ -196,7 +197,7 @@ def _digest_episode(feed_episode):
     return Episode(number=episode_num, link=link, date=date)
 
 
-def _extract_episode_num(name):
+def _extract_episode_num(name: str) -> int | None:
     logger.debug('Extracting episode number from "%s"', name)
     if any(ex.search(name) is not None for ex in _excludors):
         return None

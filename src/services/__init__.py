@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -5,17 +6,19 @@ from functools import lru_cache, wraps
 from json import JSONDecodeError
 from time import perf_counter, sleep
 from types import ModuleType
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Callable, TypeVar
 from xml.etree import ElementTree as xml_parser
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+from config import Config
 
 from data.models import (
     Episode,
     EpisodeScore,
     Link,
+    LinkSite,
     Poll,
     Show,
     Stream,
@@ -25,23 +28,25 @@ from data.models import (
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 # Common
 
-_service_configs = None
+_service_configs: dict[str, dict[str, str]] = {}
 
 
-def setup_services(config):
+def setup_services(config: Config) -> None:
     global _service_configs
     _service_configs = config.services
 
 
-def _get_service_config(key):
+def _get_service_config(key: str) -> dict[str, str]:
     if key in _service_configs:
         return _service_configs[key]
-    return dict()
+    return {}
 
 
-def _make_service(service):
+def _make_service(service: AbstractServiceHandler) -> AbstractServiceHandler:
     service.set_config(_get_service_config(service.key))
     return service
 
@@ -49,10 +54,12 @@ def _make_service(service):
 # Utilities
 
 
-def import_all_services(pkg: ModuleType, class_name: str):
+def import_all_services(
+    pkg: ModuleType, class_name: str
+) -> dict[str, AbstractServiceHandler]:
     import importlib
 
-    services = dict()
+    services: dict[str, AbstractServiceHandler] = {}
     for name in pkg.__all__:
         module = importlib.import_module("." + name, package=pkg.__name__)
         if hasattr(module, class_name):
@@ -72,12 +79,12 @@ def import_all_services(pkg: ModuleType, class_name: str):
 ##############
 
 
-def rate_limit(wait_length):
+def rate_limit(wait_length: float) -> Callable[[Callable[..., T]], Callable[..., T]]:
     last_time = 0
 
-    def decorate(f):
-        @wraps(f)
-        def rate_limited(*args, **kwargs):
+    def decorate(f: Callable[..., T]) -> Callable[..., T]:
+        @wraps(wrapped=f)
+        def rate_limited(*args: Any, **kwargs: Any) -> T:
             nonlocal last_time
             diff = perf_counter() - last_time
             if diff < wait_length:
@@ -99,15 +106,15 @@ class Requestable:
     @rate_limit(rate_limit_wait)
     def request(
         self,
-        url,
-        json=False,
-        xml=False,
-        html=False,
-        rss=False,
-        proxy=None,
-        useragent=None,
-        auth=None,
-        timeout=10,
+        url: str,
+        json: bool = False,
+        xml: bool = False,
+        html: bool = False,
+        rss: bool = False,
+        proxy: list[str | int] | None = None,
+        useragent: str = "",
+        auth: tuple[str, str] | None = None,
+        timeout: int = 10,
     ):
         """
         Sends a request to the service.
@@ -126,7 +133,7 @@ class Requestable:
                 logger.warning("Invalid number of proxy values, need address and port")
                 proxy = None
             else:
-                proxy = {"http": "http://{}:{}".format(*proxy)}
+                proxy: dict[str, str] | None = {"http": f"http://{proxy[0]}:{proxy[1]}"}
                 logger.debug("Using proxy: %s", proxy)
 
         headers = {"User-Agent": useragent}
@@ -183,16 +190,16 @@ class Requestable:
 
 
 class AbstractServiceHandler(ABC, Requestable):
-    def __init__(self, key, name, is_generic):
+    def __init__(self, key: str, name: str, is_generic: int) -> None:
         self.key = key
         self.name = name
-        self.config = None
         self.is_generic = is_generic
+        self.config: dict[str, str] = {}
 
-    def set_config(self, config):
+    def set_config(self, config: dict[str, str]) -> None:
         self.config = config
 
-    def get_latest_episode(self, stream: Stream, **kwargs) -> Optional[Episode]:
+    def get_latest_episode(self, stream: Stream, **kwargs: Any) -> Episode | None:
         """
         Gets information on the latest episode for this service.
         :param stream: The stream being checked
@@ -202,7 +209,9 @@ class AbstractServiceHandler(ABC, Requestable):
         episodes = self.get_published_episodes(stream, **kwargs)
         return max(episodes, key=lambda e: e.number, default=None)
 
-    def get_published_episodes(self, stream: Stream, **kwargs) -> Iterable[Episode]:
+    def get_published_episodes(
+        self, stream: Stream, **kwargs: Any
+    ) -> Iterable[Episode]:
         """
         Gets all possible live episodes for a given stream. Not all older episodes are
         guaranteed to be returned due to potential API limitations.
@@ -219,7 +228,7 @@ class AbstractServiceHandler(ABC, Requestable):
         )  # Update 9/14/16: It actually matters.
 
     @abstractmethod
-    def get_all_episodes(self, stream: Stream, **kwargs) -> Iterable[Episode]:
+    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> Iterable[Episode]:
         """
         Gets all possible episodes for a given stream. Not all older episodes are
         guaranteed to be returned due to potential API limitations.
@@ -230,8 +239,8 @@ class AbstractServiceHandler(ABC, Requestable):
         return list()
 
     def get_recent_episodes(
-        self, streams: Iterable[Stream], **kwargs
-    ) -> Dict[Stream, Iterable[Episode]]:
+        self, streams: Iterable[Stream], **kwargs: Any
+    ) -> dict[Stream, Iterable[Episode]]:
         """
         Gets all recently released episode on the service, for the given streams.
         What counts as recent is decided by the service handler, but all newly released episodes
@@ -245,7 +254,7 @@ class AbstractServiceHandler(ABC, Requestable):
         return {stream: self.get_all_episodes(stream, **kwargs) for stream in streams}
 
     @abstractmethod
-    def get_stream_link(self, stream: Stream) -> Optional[str]:
+    def get_stream_link(self, stream: Stream) -> str | None:
         """
         Creates a URL to a show's main stream page hosted by this service.
         :param stream: The show's stream
@@ -254,7 +263,7 @@ class AbstractServiceHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def extract_show_key(self, url: str) -> Optional[str]:
+    def extract_show_key(self, url: str) -> str | None:
         """
         Extracts a show's key from its URL.
         For example, "myriad-colors-phantom-world" is extracted from the Crunchyroll URL
@@ -265,7 +274,7 @@ class AbstractServiceHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def get_stream_info(self, stream: Stream, **kwargs) -> Optional[Stream]:
+    def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
         """
         Get information about the stream, including name and ID.
         :param stream: The stream being checked
@@ -273,23 +282,23 @@ class AbstractServiceHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def get_seasonal_streams(self, **kwargs) -> List[UnprocessedStream]:
+    def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
         """
         Gets a list of streams for the current or nearly upcoming season.
         :param kwargs: Extra arguments, particularly useragent
         :return: A list of UnprocessedStreams (empty list if no shows or error)
         """
-        return list()
+        return []
 
 
 # Services
 
-_services = dict()
+_services: dict[str, AbstractServiceHandler] = {}
 
 
-def _ensure_service_handlers():
+def _ensure_service_handlers() -> None:
     global _services
-    if _services is None or len(_services) == 0:
+    if len(_services) == 0:
         from . import stream
 
         _services = import_all_services(stream, "ServiceHandler")
@@ -305,7 +314,7 @@ def get_service_handlers() -> Dict[str, AbstractServiceHandler]:
 
 
 def get_service_handler(
-    service=None, key: str = None
+    service: AbstractServiceHandler | None = None, key: str | None = None
 ) -> Optional[AbstractServiceHandler]:
     """
     Returns an instance of a service handler representing the given service or service key.
@@ -322,9 +331,10 @@ def get_service_handler(
 
 
 @lru_cache(maxsize=1)
-def get_genereic_service_handlers(
-    services=None, keys=None
-) -> List[AbstractServiceHandler]:
+def get_generic_service_handlers(
+    services: Iterable[AbstractServiceHandler] | None = None,
+    keys: Iterable[str] | None = None,
+) -> list[AbstractServiceHandler]:
     _ensure_service_handlers()
     if keys is None:
         if services is not None:
@@ -342,17 +352,17 @@ def get_genereic_service_handlers(
 
 
 class AbstractInfoHandler(ABC, Requestable):
-    def __init__(self, key, name):
+    def __init__(self, key: str, name: str) -> None:
         self.key = key
         self.name = name
-        self.config = None
+        self.config: dict[str, str] = {}
 
-    def set_config(self, config):
+    def set_config(self, config: dict[str, str]) -> None:
         # logger.debug("Setting config of %s to %s", self.key, config)
         self.config = config
 
     @abstractmethod
-    def get_link(self, link: Link) -> Optional[str]:
+    def get_link(self, link: Link) -> str | None:
         """
         Creates a URL using the information provided by a link object.
         :param link: The link object
@@ -361,7 +371,7 @@ class AbstractInfoHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def extract_show_id(self, url: str) -> Optional[str]:
+    def extract_show_id(self, url: str) -> str | None:
         """
         Extracts a show's ID from its URL.
         For example, 31737 is extracted from the MAL URL
@@ -372,21 +382,21 @@ class AbstractInfoHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def find_show(self, show_name: str, **kwargs) -> List[Show]:
+    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
         """
         Searches the link site for a show with the specified name.
         :param show_name: The desired show's name
         :param kwargs: Extra arguments, particularly useragent
         :return: A list of shows (empty list if no shows or error)
         """
-        return list()
+        return []
 
     @abstractmethod
-    def find_show_info(self, show_id: str, **kwargs) -> Optional[UnprocessedShow]:
+    def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
         return None
 
     @abstractmethod
-    def get_episode_count(self, link: Link, **kwargs) -> Optional[int]:
+    def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
         """
         Gets the episode count of the specified show on the site given by the link.
         :param link: The link pointing to the site being checked
@@ -396,7 +406,9 @@ class AbstractInfoHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def get_show_score(self, show, link, **kwargs) -> Optional[EpisodeScore]:
+    def get_show_score(
+        self, show: Show, link: Link, **kwargs: Any
+    ) -> EpisodeScore | None:
         """
         Gets the score of the specified show on the site given by the link.
         :param show: The show being checked
@@ -408,7 +420,7 @@ class AbstractInfoHandler(ABC, Requestable):
 
     @abstractmethod
     def get_seasonal_shows(
-        self, year=None, season=None, **kwargs
+        self, year: int | None = None, season: str | None = None, **kwargs: Any
     ) -> List[UnprocessedShow]:
         """
         Gets a list of shows airing in a particular season.
@@ -424,12 +436,12 @@ class AbstractInfoHandler(ABC, Requestable):
 
 # Link sites
 
-_link_sites = dict()
+_link_sites: dict[str, AbstractInfoHandler] = {}
 
 
-def _ensure_link_handlers():
+def _ensure_link_handlers() -> None:
     global _link_sites
-    if _link_sites is None or len(_link_sites) == 0:
+    if len(_link_sites) == 0:
         from . import info
 
         _link_sites = import_all_services(info, "InfoHandler")
@@ -444,7 +456,9 @@ def get_link_handlers() -> Dict[str, AbstractInfoHandler]:
     return _link_sites
 
 
-def get_link_handler(link_site=None, key: str = None) -> Optional[AbstractInfoHandler]:
+def get_link_handler(
+    link_site: LinkSite | None = None, key: str | None = None
+) -> AbstractInfoHandler | None:
     """
     Returns an instance of a link handler representing the given link site.
     :param link_site: A link site
@@ -465,15 +479,15 @@ def get_link_handler(link_site=None, key: str = None) -> Optional[AbstractInfoHa
 
 
 class AbstractPollHandler(ABC, Requestable):
-    def __init__(self, key):
+    def __init__(self, key: str) -> None:
         self.key = key
-        self.config = None
+        self.config: dict[str, str] = {}
 
-    def set_config(self, config):
+    def set_config(self, config: dict[str, str]) -> None:
         self.config = config
 
     @abstractmethod
-    def create_poll(self, title, submit: bool) -> Optional[str]:
+    def create_poll(self, title: str, submit: bool) -> str | None:
         """
         Create a new Poll.
         :param title: title of this poll
@@ -482,7 +496,7 @@ class AbstractPollHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def get_link(self, poll: Poll) -> Optional[str]:
+    def get_link(self, poll: Poll) -> str | None:
         """
         Creates a URL using the information provided by the poll object.
         :param poll: the Poll object
@@ -491,7 +505,7 @@ class AbstractPollHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def get_results_link(self, poll: Poll) -> Optional[str]:
+    def get_results_link(self, poll: Poll) -> str | None:
         """
         Creates a URL for the poll results using the information provided by the poll object.
         :param poll: the Poll object
@@ -500,7 +514,7 @@ class AbstractPollHandler(ABC, Requestable):
         return None
 
     @abstractmethod
-    def get_score(self, poll: Poll) -> Optional[float]:
+    def get_score(self, poll: Poll) -> float | None:
         """
         Return the score of this poll.
         :param poll: the Poll object
@@ -509,18 +523,18 @@ class AbstractPollHandler(ABC, Requestable):
         return None
 
 
-_poll_sites = dict()
+_poll_sites: dict[str, AbstractPollHandler] = {}
 
 
-def _ensure_poll_handlers():
+def _ensure_poll_handlers() -> None:
     global _poll_sites
-    if _poll_sites is None or len(_poll_sites) == 0:
+    if len(_poll_sites) == 0:
         from . import poll
 
         _poll_sites = import_all_services(poll, "PollHandler")
 
 
-def get_poll_handlers() -> Dict[str, AbstractPollHandler]:
+def get_poll_handlers() -> dict[str, AbstractPollHandler]:
     """
     Creates an instance of every poll handler in the polls module and returns a mapping to their keys.
     :return: a dict of poll handler keys to the instance of th poll handler

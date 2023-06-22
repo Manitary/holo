@@ -2,6 +2,9 @@
 
 import logging
 import re
+from typing import Any
+
+from data.models import EpisodeScore, Link, Show, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -10,27 +13,27 @@ logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://kitsu.io/anime/{slug}"
-    _show_link_matcher = "https?://kitsu\.io/anime/([a-zA-Z0-9-]+)"
+    _show_link_matcher = r"https?://kitsu\.io/anime/([a-zA-Z0-9-]+)"
     _season_url = "https://kitsu.io/api/edge/anime?filter[year]={year}&filter[season]={season}&filter[subtype]=tv&page[limit]=20"
 
     _api_base = "https:///kitsu.io/api/edge/anime"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("kitsu", "Kitsu")
 
-    def get_link(self, link):
+    def get_link(self, link: Link | None) -> str | None:
         if link is None:
             return None
         return self._show_link_base.format(slug=link.site_key)
 
-    def extract_show_id(self, url):
-        if url is not None:
+    def extract_show_id(self, url: str) -> str | None:
+        if url:
             match = re.match(self._show_link_matcher, url, re.I)
             if match:
                 return match.group(1)
         return None
 
-    def get_episode_count(self, link, **kwargs):
+    def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
         # logger.debug("Getting episode count")
 
         # Request show data from Kitsu
@@ -49,7 +52,9 @@ class InfoHandler(AbstractInfoHandler):
         # return count
         return None
 
-    def get_show_score(self, show, link, **kwargs):
+    def get_show_score(
+        self, show: Show, link: Link, **kwargs: Any
+    ) -> EpisodeScore | None:
         # logger.debug("Getting show score")
 
         # Request show data
@@ -68,7 +73,9 @@ class InfoHandler(AbstractInfoHandler):
         # return score
         return None
 
-    def get_seasonal_shows(self, year=None, season=None, **kwargs):
+    def get_seasonal_shows(
+        self, year: int | None = None, season: str | None = None, **kwargs: Any
+    ) -> list[UnprocessedShow]:
         # logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
         # Request season data from Kitsu
@@ -80,9 +87,9 @@ class InfoHandler(AbstractInfoHandler):
 
         # Parse data
         # TODO
-        return list()
+        return []
 
-    def find_show(self, show_name, **kwargs):
+    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
         # url = self._api_base + "?filter[text]=" + show_name
         # result = self._site_request(url, **kwargs)
         # if result is None:
@@ -93,9 +100,9 @@ class InfoHandler(AbstractInfoHandler):
         # TODO
 
         # return shows
-        return list()
+        return []
 
-    def find_show_info(self, show_id, **kwargs):
+    def find_show_info(self, show_id: str, **kwargs: Any) -> None:
         # logger.debug("Getting show info for %s", show_id)
 
         # Request show data from Kitsu
@@ -115,5 +122,5 @@ class InfoHandler(AbstractInfoHandler):
         # return UnprocessedShow(self.key, id, None, names, ShowType.UNKNOWN, 0, False)
         return None
 
-    def _site_request(self, url, **kwargs):
+    def _site_request(self, url: str, **kwargs: Any):
         return self.request(url, json=True, **kwargs)

@@ -1,21 +1,24 @@
 import logging
 
+from praw.models import Submission
 import praw
+
+from config import Config
 
 logger = logging.getLogger(__name__)
 
 # Initialization
 
-_r = None
-_config = None
+_r: praw.Reddit | None = None
+_config: Config | None = None
 
 
-def init_reddit(config):
+def init_reddit(config: Config) -> None:
     global _config
     _config = config
 
 
-def _connect_reddit():
+def _connect_reddit() -> praw.Reddit | None:
     if _config is None:
         logger.error("Can't connect to reddit without a config")
         return None
@@ -40,7 +43,7 @@ def _ensure_connection():
 # Thing doing
 
 
-def submit_text_post(subreddit, title, body):
+def submit_text_post(subreddit: str, title: str, body: str) -> Submission | None:
     _ensure_connection()
     try:
         logger.info("Checking availability of flair %s", _config.post_flair_id)
@@ -68,7 +71,7 @@ def submit_text_post(subreddit, title, body):
         return None
 
 
-def edit_text_post(url, body):
+def edit_text_post(url: str, body: str) -> Submission | None:
     _ensure_connection()
     try:
         logger.info("Editing post %s", url)
@@ -80,7 +83,7 @@ def edit_text_post(url, body):
         return None
 
 
-def get_text_post(url):
+def get_text_post(url: str) -> Submission | None:
     _ensure_connection()
     try:
         new_post = _r.submission(url=url)
@@ -112,5 +115,5 @@ def get_text_post(url):
 # Utilities
 
 
-def get_shortlink_from_id(id):
-    return "http://redd.it/{}".format(id)
+def get_shortlink_from_id(id: str) -> str:
+    return f"http://redd.it/{id}"

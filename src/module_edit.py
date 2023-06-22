@@ -3,14 +3,16 @@ import logging
 import yaml
 
 import services
+from config import Config
+from data.database import DatabaseDatabase
 from data.models import ShowType, UnprocessedShow, UnprocessedStream, str_to_showtype
 
 logger = logging.getLogger(__name__)
 
 
-def main(config, db, *args, **kwargs):
-    if len(args) == 1:
-        if _edit_with_file(db, args[0]):
+def main(config: Config, db: DatabaseDatabase, edit_file: str) -> None:
+    if edit_file:
+        if _edit_with_file(db, edit_file):
             logger.info("Edit successful; saving")
             db.commit()
         else:
@@ -20,7 +22,7 @@ def main(config, db, *args, **kwargs):
         logger.warning("Nothing to do")
 
 
-def _edit_with_file(db, edit_file):
+def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
     logger.info('Parsing show edit file "%s"', edit_file)
     try:
         with open(edit_file, "r", encoding="UTF-8") as f:

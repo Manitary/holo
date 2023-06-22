@@ -3,8 +3,12 @@
 
 import logging
 import re
+from typing import Any
+from xml.etree.ElementTree import XMLParser
 
-from data.models import ShowType, UnprocessedShow
+from bs4 import BeautifulSoup
+
+from data.models import Link, Show, ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -13,41 +17,41 @@ logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://myanimelist.net/anime/{id}/"
-    _show_link_matcher = "https?://(?:.+?\.)?myanimelist\.net/anime/([0-9]+)"
+    _show_link_matcher = r"https?://(?:.+?\.)?myanimelist\.net/anime/([0-9]+)"
     _season_show_url = "https://myanimelist.net/anime/season"
 
     _api_search_base = "https://myanimelist.net/api/anime/search.xml?q={q}"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("mal", "MyAnimeList")
 
-    def get_link(self, link):
+    def get_link(self, link: Link | None) -> str | None:
         if link is None:
             return None
         return self._show_link_base.format(id=link.site_key)
 
-    def extract_show_id(self, url):
-        if url is not None:
+    def extract_show_id(self, url: str) -> str | None:
+        if url:
             match = re.match(self._show_link_matcher, url, re.I)
             if match:
                 return match.group(1)
         return None
 
-    def find_show(self, show_name, **kwargs):
+    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
         url = self._api_search_base.format(q=show_name)
         result = self._mal_api_request(url, **kwargs)
         if result is None:
             logger.error("Failed to find show")
-            return list()
+            return []
 
         assert result.tag == "anime"
-        shows = list()
+        shows: list[Show] = []
         for child in result:
             print(child)
             assert child.tag == "entry"
 
-            id = child.find("id").text
-            name = child.find("title").text
+            id: str = child.find("id").text
+            name: str = child.find("title").text
             more_names = [child.find("english").text]
             show = UnprocessedShow(
                 site_key=self.key,
@@ -62,7 +66,7 @@ class InfoHandler(AbstractInfoHandler):
 
         return shows
 
-    def find_show_info(self, show_id, **kwargs):
+    def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
         logger.debug("Getting show info for %s", show_id)
 
         # Request show page from MAL
@@ -138,7 +142,9 @@ class InfoHandler(AbstractInfoHandler):
 
         return score
 
-    def get_seasonal_shows(self, year=None, season=None, **kwargs):
+    def get_seasonal_shows(
+        self, year: int | None = None, season: str | None = None, **kwargs: Any
+    ) -> list[UnprocessedShow]:
         # TODO: use year and season if provided
         logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
@@ -152,13 +158,13 @@ class InfoHandler(AbstractInfoHandler):
         lists = response.find_all(class_="seasonal-anime-list")
         if len(lists) == 0:
             logger.error("Invalid page? Lists not found")
-            return list()
+            return []
         new_list = lists[0].find_all(class_="seasonal-anime")
         if len(new_list) == 0:
             logger.error("Invalid page? Shows not found in list")
-            return list()
+            return []
 
-        new_shows = list()
+        new_shows: list[UnprocessedShow] = []
         episode_count_regex = re.compile("(\d+|\?) eps?")
         for show in new_list:
             show_key = show.find(class_="genres")["id"]
@@ -190,10 +196,10 @@ class InfoHandler(AbstractInfoHandler):
 
     # Private
 
-    def _mal_request(self, url, **kwargs):
+    def _mal_request(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
         return self.request(url, html=True, **kwargs)
 
-    def _mal_api_request(self, url, **kwargs):
+    def _mal_api_request(self, url: str, **kwargs: Any) -> XMLParser | None:
         if "username" not in self.config or "password" not in self.config:
             logger.error("Username and password required for MAL requests")
             return None
@@ -206,6 +212,6 @@ def _convert_type(mal_type):
     return None
 
 
-def _normalize_title(title):
-    title = re.sub(" \(TV\)", "", title)
+def _normalize_title(title: str) -> str:
+    title = re.sub(r" \(TV\)", "", title)
     return title

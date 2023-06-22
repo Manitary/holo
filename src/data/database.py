@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import logging
 import re
 import sqlite3
 from datetime import datetime, timezone
 from functools import lru_cache, wraps
-from typing import List, Optional, Set
+from typing import Any, Callable, TypeVar
 
 from unidecode import unidecode
+
+from services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
 
 from .models import (
     Episode,
@@ -25,8 +29,23 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+T0 = TypeVar("T0")
 
-def living_in(the_database):
+EMPTY_LIST_SERVICE: list[Service] = []
+EMPTY_LIST_STREAM: list[Stream] = []
+EMPTY_LIST_LITESTREAM: list[LiteStream] = []
+EMPTY_LIST_LINK: list[Link] = []
+EMPTY_LIST_LINKSITE: list[LinkSite] = []
+EMPTY_LIST_SHOW: list[Link] = []
+EMPTY_LIST_STRING: list[str] = []
+EMPTY_LIST_EPISODE: list[Episode] = []
+EMPTY_LIST_EPISODESCORE: list[EpisodeScore] = []
+EMPTY_LIST_POLL: list[Poll] = []
+EMPTY_SET_SHOW: set[Show] = set()
+
+
+def living_in(the_database: str) -> DatabaseDatabase | None:
     """
     wow wow
     :param the_database:
@@ -41,7 +60,7 @@ def living_in(the_database):
     return DatabaseDatabase(db)
 
 
-def dict_factory(cursor, row) -> dict:
+def dict_factory(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict[str, Any]:
     fields = [column[0] for column in cursor.description]
     return dict(zip(fields, row))
 
@@ -49,9 +68,9 @@ def dict_factory(cursor, row) -> dict:
 # Database
 
 
-def db_error(f):
+def db_error(f: Callable[..., Any]) -> Callable[..., bool]:
     @wraps(f)
-    def protected(*args, **kwargs):
+    def protected(*args: Any, **kwargs: Any) -> bool:
         try:
             f(*args, **kwargs)
             return True
@@ -62,12 +81,14 @@ def db_error(f):
     return protected
 
 
-def db_error_default(default_value):
+def db_error_default(
+    default_value: T0,
+) -> Callable[[Callable[..., T]], Callable[..., T | T0]]:
     value = default_value
 
-    def decorate(f):
-        @wraps(f)
-        def protected(*args, **kwargs):
+    def decorate(f: Callable[..., T]) -> Callable[..., T | T0]:
+        @wraps(wrapped=f)
+        def protected(*args: Any, **kwargs: Any) -> T | T0:
             nonlocal value
             try:
                 return f(*args, **kwargs)
@@ -81,7 +102,7 @@ def db_error_default(default_value):
 
 
 class DatabaseDatabase:
-    def __init__(self, db: sqlite3.Connection):
+    def __init__(self, db: sqlite3.Connection) -> None:
         self._db = db
         self._db.row_factory = dict_factory
         self.q = self._db.cursor()
@@ -89,19 +110,19 @@ class DatabaseDatabase:
         # Set up collations
         self._db.create_collation("alphanum", _collate_alphanum)
 
-    def __getattr__(self, attr):
+    def __getattr__(self, attr: str) -> Any:
         if attr in self.__dict__:
             return getattr(self, attr)
         return getattr(self._db, attr)
 
-    def get_count(self):
+    def get_count(self) -> Any:
         return self.q.fetchone()["count(*)"]
 
-    def save(self):
+    def save(self) -> None:
         self.commit()
 
     # Setup
-    def setup_tables(self):
+    def setup_tables(self) -> None:
         self.q.execute(
             """CREATE TABLE IF NOT EXISTS ShowTypes (
 			id		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
@@ -244,7 +265,7 @@ class DatabaseDatabase:
 
         self.commit()
 
-    def register_services(self, services):
+    def register_services(self, services: dict[str, AbstractServiceHandler]) -> None:
         self.q.execute("UPDATE Services SET enabled = 0")
         for service_key in services:
             service = services[service_key]
@@ -258,7 +279,7 @@ class DatabaseDatabase:
             )
         self.commit()
 
-    def register_link_sites(self, sites):
+    def register_link_sites(self, sites: dict[str, AbstractInfoHandler]) -> None:
         self.q.execute("UPDATE LinkSites SET enabled = 0")
         for site_key in sites:
             site = sites[site_key]
@@ -272,7 +293,7 @@ class DatabaseDatabase:
             )
         self.commit()
 
-    def register_poll_sites(self, polls):
+    def register_poll_sites(self, polls: dict[str, AbstractPollHandler]) -> None:
         for poll_key in polls:
             poll = polls[poll_key]
             self.q.execute(
@@ -283,7 +304,9 @@ class DatabaseDatabase:
     # Services
     @db_error_default(None)
     @lru_cache(10)
-    def get_service(self, id=None, key=None) -> Optional[Service]:
+    def get_service(
+        self, id: int | None = None, key: str | None = None
+    ) -> Service | None:
         if id is not None:
             self.q.execute(
                 "SELECT id, key, name, enabled, use_in_post FROM Services WHERE id = ?",
@@ -300,9 +323,11 @@ class DatabaseDatabase:
         service = self.q.fetchone()
         return Service(**service)
 
-    @db_error_default(list())
-    def get_services(self, enabled=True, disabled=False) -> List[Service]:
-        services = list()
+    @db_error_default(EMPTY_LIST_SERVICE)
+    def get_services(
+        self, enabled: bool = True, disabled: bool = False
+    ) -> list[Service]:
+        services: list[Service] = []
         if enabled:
             self.q.execute(
                 "SELECT id, key, name, enabled, use_in_post FROM Services WHERE enabled = 1"
@@ -318,7 +343,9 @@ class DatabaseDatabase:
         return services
 
     @db_error_default(None)
-    def get_stream(self, id=None, service_tuple=None) -> Optional[Stream]:
+    def get_stream(
+        self, id: int | None = None, service_tuple: tuple[Service, str] | None = None
+    ) -> Stream | None:
         if id is not None:
             logger.debug("Getting stream for id %s", id)
 
@@ -350,10 +377,15 @@ class DatabaseDatabase:
         stream.show = self.get_show(id=stream.show)  # convert show id to show model
         return stream
 
-    @db_error_default(list())
+    @db_error_default(EMPTY_LIST_STREAM)
     def get_streams(
-        self, service=None, show=None, active=True, unmatched=False, missing_name=False
-    ) -> List[Stream]:
+        self,
+        service: Service | None = None,
+        show: Show | None = None,
+        active: bool = True,
+        unmatched: bool = False,
+        missing_name: bool = False,
+    ) -> list[Stream]:
         # Not the best combination of options, but it's only the usage needed
         if service is not None and active == True:
             logger.debug("Getting all active streams for service %s", service.key)
@@ -415,7 +447,7 @@ class DatabaseDatabase:
         return streams
 
     @db_error_default(False)
-    def has_stream(self, service_key, key) -> bool:
+    def has_stream(self, service_key: str, key: str) -> bool:
         service = self.get_service(key=service_key)
         self.q.execute(
             "SELECT count(*) FROM Streams WHERE service = ? AND show_key = ?",
@@ -424,7 +456,9 @@ class DatabaseDatabase:
         return self.get_count() > 0
 
     @db_error
-    def add_stream(self, raw_stream: UnprocessedStream, show_id, commit=True):
+    def add_stream(
+        self, raw_stream: UnprocessedStream, show_id: int | None, commit: bool = True
+    ) -> None:
         logger.debug("Inserting stream: %s", raw_stream)
 
         service = self.get_service(key=raw_stream.service_key)
@@ -448,14 +482,14 @@ class DatabaseDatabase:
     def update_stream(
         self,
         stream: Stream,
-        show=None,
-        active=None,
-        name=None,
-        show_id=None,
-        show_key=None,
-        remote_offset=None,
-        commit=True,
-    ):
+        show: Show | None = None,
+        active: bool | int | None = None,
+        name: str | None = None,
+        show_id: int | None = None,
+        show_key: str | None = None,
+        remote_offset: int | None = None,
+        commit: bool = True,
+    ) -> None:
         logger.debug("Updating stream: id=%s", stream.id)
         if show is not None:
             self.q.execute(
@@ -487,10 +521,13 @@ class DatabaseDatabase:
             self.commit()
 
     # Infos
-    @db_error_default(list())
+    @db_error_default(EMPTY_LIST_LITESTREAM)
     def get_lite_streams(
-        self, service=None, show=None, missing_link=False
-    ) -> List[LiteStream]:
+        self,
+        service: Service | None = None,
+        show: Show | None = None,
+        missing_link: bool = False,
+    ) -> list[LiteStream]:
         if service is not None:
             logger.debug("Getting all lite streams for service key %s", service)
             self.q.execute(
@@ -513,14 +550,16 @@ class DatabaseDatabase:
             )
         else:
             logger.error("A service or show must be provided to get lite streams")
-            return list()
+            return []
 
         lite_streams = self.q.fetchall()
         lite_streams = [LiteStream(**lite_stream) for lite_stream in lite_streams]
         return lite_streams
 
     @db_error
-    def add_lite_stream(self, show, service, service_name, url):
+    def add_lite_stream(
+        self, show: Show, service: Service, service_name: str, url: str
+    ) -> None:
         logger.debug("Inserting lite stream %s (%s) for show %s", service, url, show)
         self.q.execute(
             "INSERT INTO LiteStreams (show, service, service_name, url) values (?, ?, ?, ?)",
@@ -530,7 +569,9 @@ class DatabaseDatabase:
 
     # Links
     @db_error_default(None)
-    def get_link_site(self, id: str = None, key: str = None) -> Optional[LinkSite]:
+    def get_link_site(
+        self, id: str | None = None, key: str | None = None
+    ) -> LinkSite | None:
         if id is not None:
             self.q.execute(
                 "SELECT id, key, name, enabled FROM LinkSites WHERE id = ?", (id,)
@@ -547,9 +588,11 @@ class DatabaseDatabase:
             return None
         return LinkSite(**site)
 
-    @db_error_default(list())
-    def get_link_sites(self, enabled=True, disabled=False) -> List[LinkSite]:
-        sites = list()
+    @db_error_default(EMPTY_LIST_LINKSITE)
+    def get_link_sites(
+        self, enabled: bool = True, disabled: bool = False
+    ) -> list[LinkSite]:
+        sites: list[LinkSite] = []
         if enabled:
             self.q.execute(
                 "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = 1"
@@ -564,8 +607,8 @@ class DatabaseDatabase:
                 sites.append(LinkSite(**link))
         return sites
 
-    @db_error_default(list())
-    def get_links(self, show: Show = None) -> List[Link]:
+    @db_error_default(EMPTY_LIST_LINK)
+    def get_links(self, show: Show | None = None) -> list[Link]:
         if show is not None:
             logger.debug("Getting all links for show %s", show.id)
 
@@ -578,10 +621,10 @@ class DatabaseDatabase:
             return links
         else:
             logger.error("A show must be provided to get links")
-            return list()
+            return []
 
     @db_error_default(None)
-    def get_link(self, show: Show, link_site: LinkSite) -> Optional[Link]:
+    def get_link(self, show: Show, link_site: LinkSite) -> Link | None:
         logger.debug("Getting link for show %s and site %s", show.id, link_site.key)
 
         self.q.execute(
@@ -595,7 +638,7 @@ class DatabaseDatabase:
         return link
 
     @db_error_default(False)
-    def has_link(self, site_key, key, show=None) -> bool:
+    def has_link(self, site_key: str, key: str, show: int | None = None) -> bool:
         site = self.get_link_site(key=site_key)
         if show is not None:
             self.q.execute(
@@ -610,7 +653,9 @@ class DatabaseDatabase:
         return self.get_count() > 0
 
     @db_error
-    def add_link(self, raw_show: UnprocessedShow, show_id, commit=True):
+    def add_link(
+        self, raw_show: UnprocessedShow, show_id: int, commit: bool = True
+    ) -> None:
         logger.debug("Inserting link: %s/%s", show_id, raw_show)
 
         site = self.get_link_site(key=raw_show.site_key)
@@ -627,11 +672,15 @@ class DatabaseDatabase:
             self.commit()
 
     # Shows
-    @db_error_default(list())
+    @db_error_default(EMPTY_LIST_SHOW)
     def get_shows(
-        self, missing_length=False, missing_stream=False, enabled=True, delayed=False
+        self,
+        missing_length: bool = False,
+        missing_stream: bool = False,
+        enabled: bool = True,
+        delayed: bool = False,
     ) -> list[Show]:
-        shows = list()
+        shows: list[Show] = []
         if missing_length:
             self.q.execute(
                 "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
@@ -668,7 +717,9 @@ class DatabaseDatabase:
         return shows
 
     @db_error_default(None)
-    def get_show(self, id=None, stream=None) -> Optional[Show]:
+    def get_show(
+        self, id: int | None = None, stream: Stream | None = None
+    ) -> Show | None:
         # logger.debug("Getting show from database")
 
         # Get show ID
@@ -692,7 +743,7 @@ class DatabaseDatabase:
         return show
 
     @db_error_default(None)
-    def get_show_by_name(self, name) -> Optional[Show]:
+    def get_show_by_name(self, name: str) -> Show | None:
         # logger.debug("Getting show from database")
 
         self.q.execute(
@@ -707,13 +758,13 @@ class DatabaseDatabase:
         show.aliases = self.get_aliases(show)
         return show
 
-    @db_error_default(list())
+    @db_error_default(EMPTY_LIST_STRING)
     def get_aliases(self, show: Show) -> list[str]:
         self.q.execute("SELECT alias FROM Aliases where show = ?", (show.id,))
         return [s for s, in self.q.fetchall()]
 
     @db_error_default(None)
-    def add_show(self, raw_show: UnprocessedShow, commit=True) -> int:
+    def add_show(self, raw_show: UnprocessedShow, commit: bool = True) -> int | None:
         logger.debug("Inserting show: %s", raw_show)
 
         name = raw_show.name
@@ -736,7 +787,7 @@ class DatabaseDatabase:
         return show_id
 
     @db_error
-    def add_alias(self, show_id: int, alias: str, commit=True):
+    def add_alias(self, show_id: int, alias: str, commit: bool = True) -> None:
         self.q.execute(
             "INSERT INTO Aliases (show, alias) VALUES (?, ?)", (show_id, alias)
         )
@@ -744,7 +795,9 @@ class DatabaseDatabase:
             self.commit()
 
     @db_error_default(None)
-    def update_show(self, show_id: str, raw_show: UnprocessedShow, commit=True):
+    def update_show(
+        self, show_id: str, raw_show: UnprocessedShow, commit: bool = True
+    ) -> None:
         logger.debug("Updating show: %s", raw_show)
 
         # name = raw_show.name
@@ -771,7 +824,9 @@ class DatabaseDatabase:
             self.commit()
 
     @db_error
-    def add_show_names(self, *names, id=None, commit=True):
+    def add_show_names(
+        self, *names: str, id: int | None = None, commit: bool = True
+    ) -> None:
         self.q.executemany(
             "INSERT INTO ShowNames (show, name) VALUES (?, ?)",
             [(id, name) for name in names],
@@ -780,7 +835,7 @@ class DatabaseDatabase:
             self.commit()
 
     @db_error
-    def set_show_episode_count(self, show, length):
+    def set_show_episode_count(self, show: Show, length: int) -> None:
         logger.debug(
             "Updating show episode count in database: %s, %d", show.name, length
         )
@@ -788,13 +843,15 @@ class DatabaseDatabase:
         self.commit()
 
     @db_error
-    def set_show_delayed(self, show: Show, delayed=True):
+    def set_show_delayed(self, show: Show, delayed: bool = True) -> None:
         logger.debug("Marking show %s as delayed: %s", show.name, delayed)
         self.q.execute("UPDATE Shows SET delayed = ? WHERE id = ?", (delayed, show.id))
         self.commit()
 
     @db_error
-    def set_show_enabled(self, show: Show, enabled=True, commit=True):
+    def set_show_enabled(
+        self, show: Show, enabled: bool = True, commit: bool = True
+    ) -> None:
         logger.debug(
             "Marking show %s as %s", show.name, "enabled" if enabled else "disabled"
         )
@@ -804,7 +861,7 @@ class DatabaseDatabase:
 
     # Episodes
     @db_error_default(True)
-    def stream_has_episode(self, stream: Stream, episode_num) -> bool:
+    def stream_has_episode(self, stream: Stream, episode_num: int) -> bool:
         self.q.execute(
             "SELECT count(*) FROM Episodes WHERE show = ? AND episode = ?",
             (stream.show, episode_num),
@@ -819,7 +876,7 @@ class DatabaseDatabase:
         return num_found > 0
 
     @db_error_default(None)
-    def get_latest_episode(self, show: Show) -> Optional[Episode]:
+    def get_latest_episode(self, show: Show) -> Episode | None:
         self.q.execute(
             "SELECT episode AS number, post_url AS link FROM Episodes WHERE show = ? ORDER BY episode DESC LIMIT 1",
             (show.id,),
@@ -830,7 +887,7 @@ class DatabaseDatabase:
         return None
 
     @db_error
-    def add_episode(self, show, episode_num, post_url):
+    def add_episode(self, show: Show, episode_num: int, post_url: str) -> None:
         logger.debug(
             "Inserting episode %d for show %s (%s)", episode_num, show.id, post_url
         )
@@ -840,9 +897,9 @@ class DatabaseDatabase:
         )
         self.commit()
 
-    @db_error_default(list())
-    def get_episodes(self, show, ensure_sorted=True) -> List[Episode]:
-        episodes = list()
+    @db_error_default(EMPTY_LIST_EPISODE)
+    def get_episodes(self, show: Show, ensure_sorted: bool = True) -> list[Episode]:
+        episodes: list[Episode] = []
         self.q.execute(
             "SELECT episode AS number, post_url AS link FROM Episodes WHERE show = ?",
             (show.id,),
@@ -855,16 +912,16 @@ class DatabaseDatabase:
         return episodes
 
     # Scores
-    @db_error_default(list())
-    def get_show_scores(self, show: Show) -> List[EpisodeScore]:
+    @db_error_default(EMPTY_LIST_EPISODESCORE)
+    def get_show_scores(self, show: Show) -> list[EpisodeScore]:
         self.q.execute(
             "SELECT episode, site AS site_id, score FROM Scores WHERE show=?",
             (show.id,),
         )
         return [EpisodeScore(show_id=show.id, **s) for s in self.q.fetchall()]
 
-    @db_error_default(list())
-    def get_episode_scores(self, show: Show, episode: Episode) -> List[EpisodeScore]:
+    @db_error_default(EMPTY_LIST_EPISODESCORE)
+    def get_episode_scores(self, show: Show, episode: Episode) -> list[EpisodeScore]:
         self.q.execute(
             "SELECT site AS site_id, score FROM Scores WHERE show=? AND episode=?",
             (show.id, episode.number),
@@ -877,7 +934,7 @@ class DatabaseDatabase:
     @db_error_default(None)
     def get_episode_score_avg(
         self, show: Show, episode: Episode
-    ) -> Optional[EpisodeScore]:
+    ) -> EpisodeScore | None:
         logger.debug("Calculating avg score for %s (%s)", show.name, show.id)
         self.q.execute(
             "SELECT score FROM Scores WHERE show=? AND episode=?",
@@ -892,8 +949,13 @@ class DatabaseDatabase:
 
     @db_error
     def add_episode_score(
-        self, show: Show, episode: Episode, site: LinkSite, score: float, commit=True
-    ):
+        self,
+        show: Show,
+        episode: Episode,
+        site: LinkSite,
+        score: float,
+        commit: bool = True,
+    ) -> None:
         self.q.execute(
             "INSERT INTO Scores (show, episode, site, score) VALUES (?, ?, ?, ?)",
             (show.id, episode.number, site.id, score),
@@ -904,7 +966,9 @@ class DatabaseDatabase:
     # Polls
 
     @db_error_default(None)
-    def get_poll_site(self, id: str = None, key: str = None) -> Optional[PollSite]:
+    def get_poll_site(
+        self, id: str | None = None, key: str | None = None
+    ) -> PollSite | None:
         if id is not None:
             self.q.execute("SELECT id, key FROM PollSites WHERE id = ?", (id,))
         elif key is not None:
@@ -919,18 +983,23 @@ class DatabaseDatabase:
 
     @db_error
     def add_poll(
-        self, show: Show, episode: Episode, site: PollSite, poll_id, commit=True
-    ):
-        ts = int(datetime.now(timezone.utc).timestamp())
+        self,
+        show: Show,
+        episode: Episode,
+        site: PollSite,
+        poll_id: str,
+        commit: bool = True,
+    ) -> None:
+        timestamp = int(datetime.now(timezone.utc).timestamp())
         self.q.execute(
             "INSERT INTO Polls (show, episode, poll_service, poll_id, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (show.id, episode.number, site.id, poll_id, ts),
+            (show.id, episode.number, site.id, poll_id, timestamp),
         )
         if commit:
             self.commit()
 
     @db_error
-    def update_poll_score(self, poll: Poll, score, commit=True):
+    def update_poll_score(self, poll: Poll, score: float, commit: bool = True) -> None:
         self.q.execute(
             "UPDATE Polls SET score = ? WHERE show = ? AND episode = ?",
             (score, poll.show_id, poll.episode),
@@ -939,7 +1008,7 @@ class DatabaseDatabase:
             self.commit()
 
     @db_error_default(None)
-    def get_poll(self, show: Show, episode: Episode):
+    def get_poll(self, show: Show, episode: Episode) -> Poll | None:
         self.q.execute(
             "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE show = ? AND episode = ?",
             (show.id, episode.number),
@@ -949,9 +1018,11 @@ class DatabaseDatabase:
             return None
         return Poll(**poll)
 
-    @db_error_default(list())
-    def get_polls(self, show: Show = None, missing_score=False):
-        polls = list()
+    @db_error_default(EMPTY_LIST_POLL)
+    def get_polls(
+        self, show: Show | None = None, missing_score: bool = False
+    ) -> list[Poll]:
+        polls: list[Poll] = []
         if show is not None:
             self.q.execute(
                 "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE show = ?",
@@ -963,15 +1034,15 @@ class DatabaseDatabase:
             )
         else:
             logger.error("Need to select a show to get polls")
-            return list()
+            return []
         for poll in self.q.fetchall():
             polls.append(Poll(**poll))
         return polls
 
     # Searching
-    @db_error_default(set())
-    def search_show_ids_by_names(self, *names, exact=False) -> Set[Show]:
-        shows = set()
+    @db_error_default(EMPTY_SET_SHOW)
+    def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[Show]:
+        shows: set[Show] = set()
         for name in names:
             logger.debug("Searching shows by name: %s", name)
             if exact:
@@ -1002,7 +1073,7 @@ def to_show_type(db_val: str) -> ShowType:
     return ShowType.UNKNOWN
 
 
-def from_show_type(st: ShowType) -> Optional[str]:
+def from_show_type(st: ShowType) -> str | None:
     if st is None:
         return None
     return st.value
@@ -1011,7 +1082,7 @@ def from_show_type(st: ShowType) -> Optional[str]:
 ## Collations
 
 
-def _collate_alphanum(str1, str2):
+def _collate_alphanum(str1: str, str2: str) -> int:
     str1 = _alphanum_convert(str1)
     str2 = _alphanum_convert(str2)
 
@@ -1027,7 +1098,7 @@ _alphanum_regex = re.compile("[^a-zA-Z0-9]+")
 _romanization_o = re.compile("\bwo\b")
 
 
-def _alphanum_convert(s):
+def _alphanum_convert(s: str) -> str:
     # TODO: punctuation is important for some shows to distinguish between seasons (ex. K-On! and K-On!!)
     # 6/28/16: The purpose of this function is weak collation; use of punctuation to distinguish between seasons can be done later when handling multiple found shows.
 

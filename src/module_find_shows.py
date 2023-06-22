@@ -4,12 +4,19 @@ from collections import OrderedDict
 import yaml
 
 import services
+from config import Config
+from data.database import DatabaseDatabase
 from data.models import ShowType
 
 logger = logging.getLogger(__name__)
 
 
-def main(config, db, output_yaml, output_file=None, **kwargs):
+def main(
+    config: Config,
+    db: DatabaseDatabase,
+    output_yaml: bool,
+    output_file: str | None = None,
+) -> None:
     if output_yaml and output_file:
         logger.debug("Using output file: %s", output_file)
         create_season_config(config, db, output_file)

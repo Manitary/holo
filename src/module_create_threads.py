@@ -1,13 +1,17 @@
 import logging
 
 import reddit
+from config import Config
+from data.database import DatabaseDatabase
 from data.models import Episode, Stream
 from module_find_episodes import _create_reddit_post, _edit_reddit_post
 
 logger = logging.getLogger(__name__)
 
 
-def main(config, db, show_name, episode):
+def main(
+    config: Config, db: DatabaseDatabase, show_name: str, episode: str | int
+) -> bool:
     int_episode = Episode(number=int(episode))
     reddit.init_reddit(config)
 

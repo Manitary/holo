@@ -2,6 +2,11 @@
 
 import logging
 import re
+from typing import Any
+
+from bs4 import BeautifulSoup
+
+from data.models import EpisodeScore, Link, Show, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -15,29 +20,33 @@ class InfoHandler(AbstractInfoHandler):
         "https://anilist.co/api/browse/anime?year={year}&season={season}&type=Tv"
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("anilist", "AniList")
         self.rate_limit_wait = 2
 
-    def get_link(self, link):
+    def get_link(self, link: Link | None) -> str | None:
         if link is None:
             return None
         return self._show_link_base.format(id=link.site_key)
 
-    def extract_show_id(self, url):
-        if url is not None:
+    def extract_show_id(self, url: str) -> str | None:
+        if url:
             match = re.match(self._show_link_matcher, url, re.I)
             if match:
                 return match.group(1)
         return None
 
-    def get_episode_count(self, link, **kwargs):
+    def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
         return None
 
-    def get_show_score(self, show, link, **kwargs):
+    def get_show_score(
+        self, show: Show, link: Link, **kwargs: Any
+    ) -> EpisodeScore | None:
         return None
 
-    def get_seasonal_shows(self, year=None, season=None, **kwargs):
+    def get_seasonal_shows(
+        self, year: int | None = None, season: str | None = None, **kwargs: Any
+    ) -> list[UnprocessedShow]:
         # logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
         # Request season page from AniDB
@@ -49,13 +58,13 @@ class InfoHandler(AbstractInfoHandler):
 
         # Parse page
         # TODO
+        return []
+
+    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
         return list()
 
-    def find_show(self, show_name, **kwargs):
-        return list()
-
-    def find_show_info(self, show_id, **kwargs):
+    def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
         return None
 
-    def _site_request(self, url, **kwargs):
+    def _site_request(self, url: str, **kwargs: Any) -> BeautifulSoup:
         return self.request(url, html=True, **kwargs)

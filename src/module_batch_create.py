@@ -1,7 +1,9 @@
 import logging
 
 import reddit
-from data.models import Episode, Stream
+from config import Config
+from data.database import DatabaseDatabase
+from data.models import Episode, Show, Stream
 from module_find_episodes import (
     _create_reddit_post,
     _edit_reddit_post,
@@ -11,7 +13,9 @@ from module_find_episodes import (
 logger = logging.getLogger(__name__)
 
 
-def main(config, db, show_name, episode_count):
+def main(
+    config: Config, db: DatabaseDatabase, show_name: str, episode_count: str | int
+) -> None:
     int_episode_count = int(episode_count)
     reddit.init_reddit(config)
 
@@ -20,7 +24,7 @@ def main(config, db, show_name, episode_count):
         raise IOError(f"Show {show_name} does not exist!")
     stream = Stream.from_show(show)
 
-    post_urls = list()
+    post_urls: list[str] = []
     for i in range(1, int_episode_count + 1):
         int_episode = Episode(number=i)
         post_url = _create_reddit_post(
@@ -72,7 +76,9 @@ def main(config, db, show_name, episode_count):
     logger.info("Megathread: %s", megathread_url)
 
 
-def _create_megathread_content(config, db, show, stream, episode_count):
+def _create_megathread_content(
+    config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode_count: int
+) -> tuple[str, str]:
     title = _create_megathread_title(config, show, episode_count)
     title = _format_post_text(
         config,

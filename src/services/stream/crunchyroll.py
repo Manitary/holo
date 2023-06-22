@@ -1,8 +1,10 @@
 import logging
 import re
 from datetime import datetime, timedelta
+from time import struct_time
+from typing import Any
 
-from data.models import Episode, UnprocessedStream
+from data.models import Episode, Stream, UnprocessedStream
 
 from .. import AbstractServiceHandler
 
@@ -11,17 +13,17 @@ logger = logging.getLogger(__name__)
 
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "http://crunchyroll.com/{id}"
-    _show_re = re.compile("crunchyroll.com/([\w-]+)", re.I)
+    _show_re = re.compile(r"crunchyroll.com/([\w-]+)", re.I)
     _episode_rss = "http://crunchyroll.com/{id}.rss"
     _backup_rss = "http://crunchyroll.com/rss/anime"
     _season_url = "http://crunchyroll.com/lineup"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("crunchyroll", "Crunchyroll", False)
 
     # Episode finding
 
-    def get_all_episodes(self, stream, **kwargs):
+    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
         logger.info("Getting live episodes for Crunchyroll/%s", stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
@@ -44,7 +46,7 @@ class ServiceHandler(AbstractServiceHandler):
             logger.debug("  No episodes found")
         return episodes
 
-    def _get_feed_episodes(self, show_key, **kwargs):
+    def _get_feed_episodes(self, show_key: str, **kwargs: Any):
         """
         Always returns a list.
         """
@@ -56,20 +58,20 @@ class ServiceHandler(AbstractServiceHandler):
         response = self.request(url, rss=True, **kwargs)
         if response is None:
             logger.error("Cannot get latest show for Crunchyroll/%s", show_key)
-            return list()
+            return []
 
         # Parse RSS feed
         if not _verify_feed(response):
             logger.warning(
                 "Parsed feed could not be verified, may have unexpected results"
             )
-        return response.get("entries", list())
+        return response.get("entries", [])
 
     @classmethod
-    def _get_feed_url(cls, show_key):
+    def _get_feed_url(cls, show_key: str) -> str:
         # Sometimes shows don't have an RSS feed
         # Use the backup global feed when it doesn't
-        if show_key is not None:
+        if show_key:
             return cls._episode_rss.format(id=show_key)
         else:
             logger.debug("  Using backup feed")
@@ -80,7 +82,7 @@ class ServiceHandler(AbstractServiceHandler):
     _title_fix = re.compile("(.*) Episodes", re.I)
     _title_fix_fr = re.compile("(.*) Épisodes", re.I)
 
-    def get_stream_info(self, stream, **kwargs):
+    def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
         logger.info("Getting stream info for Crunchyroll/%s", stream.show_key)
 
         url = self._get_feed_url(stream.show_key)
@@ -103,32 +105,32 @@ class ServiceHandler(AbstractServiceHandler):
             stream.name = match.group(1)
         return stream
 
-    def get_seasonal_streams(self, **kwargs):
+    def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
         logger.debug("Getting season shows")
 
         # Request page
         response = self.request(self._season_url, html=True, **kwargs)
         if response is None:
             logger.error("Failed to get seasonal streams page")
-            return list()
+            return []
 
         # Find sections (continuing simulcast, new simulcast, new catalog)
         lists = response.find_all(class_="lineup-grid")
         if len(lists) < 2:
             logger.error("Unsupported structure of lineup page")
-            return list()
+            return []
         elif len(lists) < 2 or len(lists) > 3:
             logger.warning("Unexpected number of lineup grids")
 
         # Parse individual shows
         # WARNING: Some may be dramas and there's nothing distinguishing them from anime
         show_elements = lists[1].find_all(class_="element-lineup-anime")
-        raw_streams = list()
+        raw_streams: list[UnprocessedStream] = []
         for show in show_elements:
-            title = show["title"]
+            title: str = show["title"]
             if "to be announced" not in title.lower():
                 logger.debug("  Show: %s", title)
-                url = show["href"]
+                url: str = show["href"]
                 logger.debug("  URL: %s", url)
                 url_match = self._show_re.search(url)
                 if not url_match:
@@ -149,17 +151,17 @@ class ServiceHandler(AbstractServiceHandler):
 
         return raw_streams
 
-    def _get_stream_info(self, show_key):
+    def _get_stream_info(self, show_key: str) -> tuple[int, int]:
         # TODO: load show page and figure out offsets based on contents
         return 0, 0
 
     # Local info formatting
 
-    def get_stream_link(self, stream):
+    def get_stream_link(self, stream: Stream) -> str:
         # Just going to assume it's the correct service
         return self._show_url.format(id=stream.show_key)
 
-    def extract_show_key(self, url):
+    def extract_show_key(self, url: str) -> str | None:
         match = self._show_re.search(url)
         if match:
             if match.group(1) != "series":
@@ -170,7 +172,7 @@ class ServiceHandler(AbstractServiceHandler):
 # Episode feeds
 
 
-def _verify_feed(feed):
+def _verify_feed(feed) -> bool:
     logger.debug("Verifying feed")
     if feed.bozo:
         logger.debug("  Feed was malformed")
@@ -188,7 +190,7 @@ def _verify_feed(feed):
     return True
 
 
-def _is_valid_episode(feed_episode, show_id):
+def _is_valid_episode(feed_episode, show_id) -> bool:
     # We don't want non-episodes (PVs, VA interviews, etc.)
     if feed_episode.get("crunchyroll_isclip", False) or not hasattr(
         feed_episode, "crunchyroll_episodenumber"
@@ -208,7 +210,7 @@ _episode_name_correct = re.compile("Episode \d+ - (.*)")
 _episode_count_fix = re.compile("([0-9]+)[abc]?", re.I)
 
 
-def _digest_episode(feed_episode):
+def _digest_episode(feed_episode) -> Episode:
     logger.debug("Digesting episode")
 
     # Get data
@@ -221,24 +223,24 @@ def _digest_episode(feed_episode):
         )
         num = 0
     logger.debug("  num=%d", num)
-    name = feed_episode.title
+    name: str = feed_episode.title
     match = _episode_name_correct.match(name)
     if match:
         logger.debug('  Corrected title from "%s"', name)
         name = match.group(1)
     logger.debug("  name=%s", name)
-    link = feed_episode.link
+    link: str = feed_episode.link
     logger.debug("  link=%s", link)
-    date = feed_episode.published_parsed
+    date: struct_time = feed_episode.published_parsed
     logger.debug("  date=%s", date)
 
     return Episode(number=num, name=name, link=link, date=date)
 
 
-_slug_regex = re.compile("crunchyroll.com/([a-z0-9-]+)/", re.I)
+_slug_regex = re.compile(r"crunchyroll.com/([a-z0-9-]+)/", re.I)
 
 
-def _get_slug(episode_link):
+def _get_slug(episode_link: str) -> str | None:
     match = _slug_regex.search(episode_link)
     if match:
         return match.group(1)

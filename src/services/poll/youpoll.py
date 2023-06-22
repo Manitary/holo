@@ -1,7 +1,10 @@
 import logging
 import re
+from typing import Any
 
 import requests
+
+from data.models import Poll
 
 from .. import AbstractPollHandler
 
@@ -35,14 +38,14 @@ class PollHandler(AbstractPollHandler):
         "responses-input": "",
     }
 
-    _poll_id_re = re.compile("youpoll.me/(\d+)", re.I)
+    _poll_id_re = re.compile(r"youpoll.me/(\d+)", re.I)
     _poll_link = "https://youpoll.me/{id}/"
     _poll_results_link = "https://youpoll.me/{id}/r"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("youpoll")
 
-    def create_poll(self, title, submit, **kwargs):
+    def create_poll(self, title: str, submit: bool, **kwargs: Any) -> str | None:
         if not submit:
             return None
         # headers = _poll_post_headers
@@ -63,13 +66,13 @@ class PollHandler(AbstractPollHandler):
             logger.error("Could not create poll (resp !OK)")
             return None
 
-    def get_link(self, poll):
+    def get_link(self, poll: Poll) -> str:
         return self._poll_link.format(id=poll.id)
 
-    def get_results_link(self, poll):
+    def get_results_link(self, poll: Poll) -> str:
         return self._poll_results_link.format(id=poll.id)
 
-    def get_score(self, poll):
+    def get_score(self, poll: Poll) -> float | None:
         logger.debug(
             "Getting score for show %s / episode %d", poll.show_id, poll.episode
         )
@@ -112,7 +115,7 @@ class PollHandler(AbstractPollHandler):
             return None
 
     @staticmethod
-    def convert_score_str(score):
+    def convert_score_str(score: float | None) -> str:
         if score is None:
             return "----"
         else:

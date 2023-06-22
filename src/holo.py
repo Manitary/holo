@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import argparse
+from dataclasses import dataclass
 import logging
 import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from time import time
+from typing import Type
 
 import config as config_loader
 import services
@@ -29,7 +31,20 @@ os.chdir(str(Path(__file__).parent.parent))
 # Do the things
 
 
-def main(config, args, extra_args):
+@dataclass
+class ParserArguments:
+    config_file: str
+    module: str
+    debug: bool
+    log_dir: str
+    db_name: str | None
+    subreddit: str | None
+    no_input: bool
+    extra: list[str]
+    output: str
+
+
+def main(config: config_loader.Config, args: Type[ParserArguments]) -> None:
     # Set things up
     db = database.living_in(config.database)
     if not db:
@@ -52,36 +67,41 @@ def main(config, args, extra_args):
             logger.info("Editing database")
             import module_edit as m
 
-            m.main(config, db, *extra_args)
+            m.main(config=config, db=db, edit_file=args.extra[0])
         elif config.module == "episode":
             logger.info("Finding new episodes")
             import module_find_episodes as m
 
-            m.main(config, db, debug=config.debug)
+            m.main(config, db)
         elif config.module == "find":
             logger.info("Finding new shows")
             import module_find_shows as m
 
             if args.output[0] == "db":
-                m.main(config, db, False)
+                m.main(config=config, db=db, output_yaml=False)
             elif args.output[0] == "yaml":
-                f = extra_args[0] if len(extra_args) > 0 else "find_output.yaml"
-                m.main(config, db, True, output_file=f)
+                f = args.extra[0] if len(args.extra) > 0 else "find_output.yaml"
+                m.main(config=config, db=db, output_yaml=True, output_file=f)
         elif config.module == "update":
             logger.info("Updating shows")
             import module_update_shows as m
 
-            m.main(config, db)
+            m.main(config=config, db=db)
         elif config.module == "create":
             logger.info("Creating new thread")
             import module_create_threads as m
 
-            m.main(config, db, *extra_args)
+            m.main(config=config, db=db, show_name=args.extra[0], episode=args.extra[1])
         elif config.module == "batch":
             logger.info("Batch creating threads")
             import module_batch_create as m
 
-            m.main(config, db, *extra_args)
+            m.main(
+                config=config,
+                db=db,
+                show_name=args.extra[0],
+                episode_count=args.extra[1],
+            )
         else:
             logger.warning("This should never happen or you broke it!")
     except Exception:
@@ -93,7 +113,7 @@ def main(config, args, extra_args):
 
 if __name__ == "__main__":
     # Parse args
-    parser = argparse.ArgumentParser(description="{}, {}".format(name, description))
+    parser = argparse.ArgumentParser(description=f"{name}, {description}")
     parser.add_argument(
         "--no-input",
         dest="no_input",
@@ -153,11 +173,11 @@ if __name__ == "__main__":
         "-v",
         "--version",
         action="version",
-        version="{} v{}, {}".format(name, version, description),
+        version=f"{name} v{version}, {description}",
     )
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("extra", nargs="*")
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=ParserArguments)
 
     # Load config file
     config_file = (
@@ -186,7 +206,7 @@ if __name__ == "__main__":
 
         # from datetime import datetime
         # log_file = "logs/{date}_{mod}.log".format(date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), mod=c.module)
-        log_file = "{dir}/holo_{mod}.log".format(dir=c.log_dir, mod=c.module)
+        log_file = f"{c.log_dir}/holo_{c.module}.log"
         logging.basicConfig(
             # filename=log_file,
             handlers=[
@@ -215,7 +235,7 @@ if __name__ == "__main__":
     if c.debug:
         logger.info("DEBUG MODE ENABLED")
     start_time = time()
-    main(c, args, args.extra)
+    main(config=c, args=args)
     end_time = time()
 
     time_diff = end_time - start_time

@@ -1,53 +1,55 @@
 import configparser
 import logging
 
-from data.models import str_to_showtype
+from data.models import ShowType, str_to_showtype
 
 logger = logging.getLogger(__name__)
 
 
 class WhitespaceFriendlyConfigParser(configparser.ConfigParser):
-    def get(self, section, option, *args, **kwargs):
-        val = super().get(section, option, *args, **kwargs)
+    def get(self, section, option, *args, **kwargs) -> str:  # type:ignore
+        val = super().get(section, option, *args, **kwargs)  # type:ignore
         return val.strip('"')
 
 
 class Config:
-    def __init__(self):
-        self.debug = False
-        self.module = None
-        self.database = None
-        self.useragent = None
-        self.ratelimit = 1.0
+    def __init__(self) -> None:
+        self.debug: bool = False
+        self.log_dir: str | None = None
+        self.module: str | None = None
+        self.database: str = ""
+        self.useragent: str | None = None
+        self.ratelimit: float = 1.0
 
-        self.subreddit = None
-        self.r_username = None
-        self.r_password = None
-        self.r_oauth_key = None
-        self.r_oauth_secret = None
+        self.subreddit: str | None = None
+        self.r_username: str | None = None
+        self.r_password: str | None = None
+        self.r_oauth_key: str | None = None
+        self.r_oauth_secret: str | None = None
 
-        self.services = dict()
+        self.services: dict[str, dict[str, str]] = {}
 
-        self.new_show_types = list()
-        self.record_scores = False
+        self.new_show_types: list[ShowType] = []
+        self.record_scores: bool = False
 
-        self.discovery_primary_source = None
-        self.discovery_secondary_sources = list()
-        self.discovery_stream_sources = list()
+        self.discovery_primary_source: str | None = None
+        self.discovery_secondary_sources: list[str] = []
+        self.discovery_stream_sources: list[str] = []
 
-        self.post_title = None
-        self.post_title_with_en = None
-        self.post_title_postfix_final = None
-        self.post_flair_id = None
-        self.post_flair_text = None
-        self.post_body = None
-        self.batch_thread_post_title = None
-        self.batch_thread_post_title_with_en = None
-        self.batch_thread_post_body = None
-        self.post_formats = dict()
+        self.post_title: str = ""
+        self.post_title_with_en: str = ""
+        self.post_title_postfix_final: str | None = None
+        self.post_flair_id: str | None = None
+        self.post_flair_text: str | None = None
+        self.post_body: str = ""
+        self.post_poll_title: str = ""
+        self.batch_thread_post_title: str | None = None
+        self.batch_thread_post_title_with_en: str | None = None
+        self.batch_thread_post_body: str | None = None
+        self.post_formats: dict[str, str] = {}
 
 
-def from_file(file_path):
+def from_file(file_path: str) -> Config | None:
     if file_path.find(".") < 0:
         file_path += ".ini"
 
@@ -61,7 +63,7 @@ def from_file(file_path):
 
     if "data" in parsed:
         sec = parsed["data"]
-        config.database = sec.get("database", None)
+        config.database = sec.get("database", "")
 
     if "connection" in parsed:
         sec = parsed["connection"]
@@ -96,13 +98,13 @@ def from_file(file_path):
 
     if "post" in parsed:
         sec = parsed["post"]
-        config.post_title = sec.get("title", None)
-        config.post_title_with_en = sec.get("title_with_en", None)
+        config.post_title = sec.get("title", "")
+        config.post_title_with_en = sec.get("title_with_en", "")
         config.post_title_postfix_final = sec.get("title_postfix_final", None)
         config.post_flair_id = sec.get("flair_id", None)
         config.post_flair_text = sec.get("flair_text", None)
-        config.post_body = sec.get("body", None)
-        config.post_poll_title = sec.get("poll_title", None)
+        config.post_body = sec.get("body", "")
+        config.post_poll_title = sec.get("poll_title", "")
         config.batch_thread_post_title = sec.get("batch_thread_title", None)
         config.batch_thread_post_title_with_en = sec.get(
             "batch_thread_title_with_en", None
@@ -116,13 +118,13 @@ def from_file(file_path):
     for key in parsed:
         if key.startswith("service."):
             service = key[8:]
-            config.services[service] = parsed[key]
+            config.services[service] = dict(parsed[key])
 
     return config
 
 
-def validate(config):
-    def is_bad_str(s):
+def validate(config: Config) -> str | bool:
+    def is_bad_str(s: str | None) -> bool:
         return s is None or len(s) == 0
 
     if is_bad_str(config.database):
