@@ -14,7 +14,7 @@ class ShowType(enum.IntEnum):
 
 def str_to_showtype(string: str) -> ShowType:
     try:
-        return ShowType[string.strip().lower()]
+        return ShowType[string.strip().upper()]
     except KeyError:
         return ShowType.UNKNOWN
 
