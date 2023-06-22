@@ -1,10 +1,9 @@
 # API docs: https://anilist-api.readthedocs.org/en/latest/
 
+import logging
 import re
 
 from .. import AbstractInfoHandler
-from data.models import UnprocessedShow, ShowType
-import logging
 
 logger = logging.getLogger(__name__)
 

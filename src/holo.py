@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
-import sys
+import argparse
 import logging
+import os
+import sys
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
+from time import time
+
+import config as config_loader
+import services
+from data import database
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +23,10 @@ description = "episode discussion bot"
 version = "0.1.4"
 
 # Ensure proper files can be access if running with cron
-import os
-from pathlib import Path
-
 os.chdir(str(Path(__file__).parent.parent))
 
+
 # Do the things
-from data import database
-import services
 
 
 def main(config, args, extra_args):
@@ -88,8 +93,6 @@ def main(config, args, extra_args):
 
 if __name__ == "__main__":
     # Parse args
-    import argparse
-
     parser = argparse.ArgumentParser(description="{}, {}".format(name, description))
     parser.add_argument(
         "--no-input",
@@ -157,8 +160,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load config file
-    import config as config_loader
-
     config_file = (
         os.environ["HOLO_CONFIG"]
         if "HOLO_CONFIG" in os.environ
@@ -180,9 +181,6 @@ if __name__ == "__main__":
 
     # Start
     use_log = args.no_input
-
-    from logging.handlers import TimedRotatingFileHandler
-
     if use_log:
         os.makedirs(c.log_dir, exist_ok=True)
 
@@ -207,8 +205,6 @@ if __name__ == "__main__":
         )
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("praw-script-oauth").setLevel(logging.WARNING)
-
-    from time import time
 
     if use_log:
         logger.info("------------------------------------------------------------")

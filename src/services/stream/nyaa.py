@@ -1,13 +1,14 @@
 # Show search: https://www.nyaa.eu/?page=search&cats=1_37&filter=2&term=
 # Show search (RSS): https://www.nyaa.eu/?page=rss&cats=1_37&filter=2&term=
 
-from datetime import datetime, timedelta
+import logging
 import re
+from datetime import datetime, timedelta
 from urllib.parse import quote_plus as url_quote
 
-from .. import AbstractServiceHandler
 from data.models import Episode
-import logging
+
+from .. import AbstractServiceHandler
 
 logger = logging.getLogger(__name__)
 

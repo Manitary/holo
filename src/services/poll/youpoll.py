@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
-import requests
+import logging
 import re
 
+import requests
+
 from .. import AbstractPollHandler
-from data.models import Poll
-import logging
 
 logger = logging.getLogger(__name__)
 

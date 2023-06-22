@@ -1,7 +1,9 @@
 import logging
 
+import yaml
+
 import services
-from data.models import UnprocessedShow, UnprocessedStream, ShowType, str_to_showtype
+from data.models import ShowType, UnprocessedShow, UnprocessedStream, str_to_showtype
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +21,6 @@ def main(config, db, *args, **kwargs):
 
 
 def _edit_with_file(db, edit_file):
-    import yaml
-
     logger.info('Parsing show edit file "%s"', edit_file)
     try:
         with open(edit_file, "r", encoding="UTF-8") as f:

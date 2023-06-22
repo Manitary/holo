@@ -1,5 +1,6 @@
 # Export all valid modules from the package
-import glob, os
+import glob
+import os
 
 module_dir = os.path.dirname(__file__)
 modules = glob.glob(module_dir + "/*.py")

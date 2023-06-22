@@ -1,5 +1,6 @@
-import praw
 import logging
+
+import praw
 
 logger = logging.getLogger(__name__)
 

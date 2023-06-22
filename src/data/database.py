@@ -1,27 +1,29 @@
-import sqlite3, re
-from functools import wraps, lru_cache
-from unidecode import unidecode
-from typing import Set, List, Optional
-from datetime import datetime, timezone
 import logging
+import re
+import sqlite3
+from datetime import datetime, timezone
+from functools import lru_cache, wraps
+from typing import List, Optional, Set
 
-logger = logging.getLogger(__name__)
+from unidecode import unidecode
 
 from .models import (
+    Episode,
+    EpisodeScore,
+    Link,
+    LinkSite,
+    LiteStream,
+    Poll,
+    PollSite,
+    Service,
     Show,
     ShowType,
     Stream,
-    LiteStream,
-    Service,
-    LinkSite,
-    Link,
-    Episode,
-    EpisodeScore,
-    UnprocessedStream,
     UnprocessedShow,
-    PollSite,
-    Poll,
+    UnprocessedStream,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def living_in(the_database):

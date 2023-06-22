@@ -1,16 +1,14 @@
 import logging
-from datetime import date, timedelta
 
-import services
-from data.models import Stream, Episode
 import reddit
-
-logger = logging.getLogger(__name__)
+from data.models import Episode, Stream
 from module_find_episodes import (
     _create_reddit_post,
     _edit_reddit_post,
     _format_post_text,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def main(config, db, show_name, episode_count):

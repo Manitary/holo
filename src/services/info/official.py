@@ -1,10 +1,8 @@
 # Dummy info handler, used for official website of shows
 
-import re
-
+import logging
 
 from .. import AbstractInfoHandler
-import logging
 
 logger = logging.getLogger(__name__)
 

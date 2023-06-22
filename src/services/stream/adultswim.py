@@ -1,10 +1,12 @@
+import logging
 import re
 from datetime import datetime, timedelta
+
 import dateutil.parser
 
+from data.models import Episode
+
 from .. import AbstractServiceHandler
-from data.models import Episode, UnprocessedStream
-import logging
 
 logger = logging.getLogger(__name__)
 

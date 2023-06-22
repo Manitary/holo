@@ -1,9 +1,8 @@
 import logging
-from datetime import date, timedelta
 
+import reddit
 import services
 from data.models import Stream
-import reddit
 
 logger = logging.getLogger(__name__)
 

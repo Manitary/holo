@@ -8,12 +8,12 @@
 # 	https://anidb.net/perl-bin/animedb.pl?tvseries=1&show=calendar
 # 	- Based on year and month, defaults to current month
 
+import logging
 import re
 
+from data.models import ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler
-from data.models import UnprocessedShow, ShowType
-import logging
 
 logger = logging.getLogger(__name__)
 

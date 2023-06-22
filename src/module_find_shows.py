@@ -1,6 +1,10 @@
+import logging
+from collections import OrderedDict
+
+import yaml
+
 import services
 from data.models import ShowType
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +22,6 @@ def main(config, db, output_yaml, output_file=None, **kwargs):
 
 
 # New shows
-
-from collections import OrderedDict
-import yaml
 
 # Retain order of OrderedDict when dumping yaml
 represent_dict_order = lambda self, data: self.represent_mapping(

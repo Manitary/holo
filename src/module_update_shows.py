@@ -1,7 +1,7 @@
+import logging
 from datetime import datetime, timedelta
 
 import services
-import logging
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
-from datetime import datetime
-import enum
 import copy
+import enum
+from datetime import datetime
 
 
 class ShowType(enum.Enum):

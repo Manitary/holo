@@ -1,11 +1,8 @@
-from logging import debug, info, warning, error, exception
-import re
-from datetime import datetime, timedelta
-
-from .. import AbstractServiceHandler
-from data.models import Episode, UnprocessedStream
+import logging
 
 from services.stream import youtube
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceHandler(youtube.ServiceHandler):

@@ -1,6 +1,8 @@
 import configparser
 import logging
 
+from data.models import str_to_showtype
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,7 +79,6 @@ def from_file(file_path):
     if "options" in parsed:
         sec = parsed["options"]
         config.debug = sec.getboolean("debug", False)
-        from data.models import str_to_showtype
 
         config.new_show_types.extend(
             map(

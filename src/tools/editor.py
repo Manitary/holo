@@ -1,6 +1,9 @@
-import pygubu
-import sys, os, yaml
+import os
+import sys
 from collections import OrderedDict
+
+import pygubu
+import yaml
 
 
 def represent_ordereddict(dumper, data):

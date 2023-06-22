@@ -1,11 +1,12 @@
 # API information
 # 	https://myanimelist.net/modules.php?go=api
 
+import logging
 import re
 
+from data.models import ShowType, UnprocessedShow
+
 from .. import AbstractInfoHandler
-from data.models import UnprocessedShow, ShowType
-import logging
 
 logger = logging.getLogger(__name__)
 
