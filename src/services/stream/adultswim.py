@@ -28,7 +28,7 @@ class ServiceHandler(AbstractServiceHandler):
             if _is_valid_episode(episode_data, stream.show_key):
                 try:
                     episodes.append(_digest_episode(episode_data))
-                except:
+                except Exception:
                     logger.exception(
                         "Problem digesting episode for %s/%s",
                         self.name,

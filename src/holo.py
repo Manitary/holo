@@ -25,7 +25,6 @@ import services
 
 
 def main(config, args, extra_args):
-
     # Set things up
     db = database.living_in(config.database)
     if not db:
@@ -80,7 +79,7 @@ def main(config, args, extra_args):
             m.main(config, db, *extra_args)
         else:
             logger.warning("This should never happen or you broke it!")
-    except:
+    except Exception:
         logger.exception("Unknown exception or error")
         db.rollback()
 

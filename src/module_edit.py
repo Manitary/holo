@@ -100,7 +100,7 @@ def _edit_with_file(db, edit_file):
                         if roi + 1 < len(url):
                             remote_offset = int(url[roi + 1 :])
                         url = url[:roi]
-                except:
+                except Exception:
                     logger.exception('Improperly formatted stream URL "%s"', url)
                     continue
 

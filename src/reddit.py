@@ -62,7 +62,7 @@ def submit_text_post(subreddit, title, body):
             send_replies=False,
         )
         return new_post
-    except:
+    except Exception:
         logger.exception("Failed to submit text post")
         return None
 
@@ -74,7 +74,7 @@ def edit_text_post(url, body):
         post = get_text_post(url)
         post.edit(body)
         return post
-    except:
+    except Exception:
         logger.exception("Failed to submit text post")
         return None
 
@@ -84,7 +84,7 @@ def get_text_post(url):
     try:
         new_post = _r.submission(url=url)
         return new_post
-    except:
+    except Exception:
         logger.exception("Failed to retrieve text post")
         return None
 

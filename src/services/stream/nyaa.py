@@ -35,7 +35,7 @@ class ServiceHandler(AbstractServiceHandler):
                     episode = _digest_episode(episode_data)
                     if episode is not None:
                         episodes.append(episode)
-                except:
+                except Exception:
                     logger.exception(
                         "Problem digesting episode for Crunchyroll/%s", stream.show_key
                     )
@@ -76,7 +76,7 @@ class ServiceHandler(AbstractServiceHandler):
                             stream.show.id,
                         )
                         episodes[stream] = show_episodes
-                except:
+                except Exception:
                     logger.exception("Problem digesting torrent %s", torrent.id)
         return episodes
 

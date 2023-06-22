@@ -53,8 +53,8 @@ class PollHandler(AbstractPollHandler):
         # resp = requests.post(_poll_post_url, data = data, headers = headers, **kwargs)
         try:
             resp = requests.post(self._poll_post_url, data=data, **kwargs)
-        except:
-            logger.error("Could not create poll (exception in POST)")
+        except Exception as e:
+            logger.error("Could not create poll (exception in POST): %s", e)
             return None
 
         if resp.ok:
@@ -76,7 +76,7 @@ class PollHandler(AbstractPollHandler):
         )
         try:
             response = self.request(self.get_results_link(poll), html=True)
-        except:
+        except Exception:
             logger.error(
                 "Couldn't get scores for poll %s (query error)",
                 self.get_results_link(poll),
@@ -105,7 +105,7 @@ class PollHandler(AbstractPollHandler):
             total = sum([r * s for r, s in zip(results, range(5, 0, -1))])
             total = round(total, 2)
             return total
-        except:
+        except Exception:
             logger.error(
                 "Couldn't get scores for poll %s (parsing error)",
                 self.get_results_link(poll),

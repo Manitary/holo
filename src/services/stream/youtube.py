@@ -32,7 +32,7 @@ class ServiceHandler(AbstractServiceHandler):
                     episode = _digest_episode(episode_data)
                     if episode is not None:
                         episodes.append(episode)
-                except:
+                except Exception:
                     logger.exception(
                         "Problem digesting episode for Youtube/%s", stream.show_key
                     )

@@ -71,7 +71,7 @@ def save_current_file():
             yaml.dump_all(
                 sorted_docs, f, default_flow_style=False, indent=4, allow_unicode=True
             )
-    except:
+    except Exception:
         from traceback import print_exc
 
         print_exc()
@@ -144,7 +144,7 @@ class Application:
         global current_doc
         find_text = self.builder.get_variable("find_text").get().lower()
         if len(find_text) > 0:
-            for (i, doc) in enumerate(current_docs):
+            for i, doc in enumerate(current_docs):
                 name = doc["title"].lower()
                 if find_text in name:
                     current_doc = i

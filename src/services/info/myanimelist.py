@@ -130,7 +130,7 @@ class InfoHandler(AbstractInfoHandler):
         score_elem = response.find("span", attrs={"itemprop": "ratingValue"})
         try:
             score = float(score_elem.string)
-        except:
+        except Exception:
             logger.warning("  Count not found")
             return None
         logger.debug("  Score: %f", score)

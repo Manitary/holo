@@ -53,8 +53,8 @@ def db_error(f):
         try:
             f(*args, **kwargs)
             return True
-        except:
-            logger.exception("Database exception thrown")
+        except Exception as e:
+            logger.exception("Database exception thrown: %s", e)
             return False
 
     return protected
@@ -69,8 +69,8 @@ def db_error_default(default_value):
             nonlocal value
             try:
                 return f(*args, **kwargs)
-            except:
-                logger.exception("Database exception thrown")
+            except Exception as e:
+                logger.exception("Database exception thrown: %s", e)
                 return value
 
         return protected
