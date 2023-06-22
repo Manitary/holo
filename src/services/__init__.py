@@ -1,7 +1,9 @@
-from logging import debug, warning, error
 from abc import abstractmethod, ABC
 from types import ModuleType
 from typing import List, Dict, Optional, Iterable
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Common
 
@@ -37,7 +39,7 @@ def import_all_services(pkg: ModuleType, class_name: str):
             handler = getattr(module, class_name)()
             services[handler.key] = _make_service(handler)
         else:
-            warning(
+            logger.warning(
                 "Service module {}.{} has no handler {}".format(
                     pkg.__name__, name, class_name
                 )
@@ -111,57 +113,57 @@ class Requestable:
         """
         if proxy is not None:
             if len(proxy) != 2:
-                warning("Invalid number of proxy values, need address and port")
+                logger.warning("Invalid number of proxy values, need address and port")
                 proxy = None
             else:
                 proxy = {"http": "http://{}:{}".format(*proxy)}
-                debug("Using proxy: {}", proxy)
+                logger.debug("Using proxy: {}", proxy)
 
         headers = {"User-Agent": useragent}
-        debug("Sending request")
-        debug("  URL={}".format(url))
-        debug("  Headers={}".format(headers))
+        logger.debug("Sending request")
+        logger.debug("  URL={}".format(url))
+        logger.debug("  Headers={}".format(headers))
         try:
             response = requests.get(
                 url, headers=headers, proxies=proxy, auth=auth, timeout=timeout
             )
         except requests.exceptions.Timeout:
-            error("  Response timed out")
+            logger.error("  Response timed out")
             return None
-        debug("  Status code: {}".format(response.status_code))
+        logger.debug("  Status code: {}".format(response.status_code))
         if (
             not response.ok or response.status_code == 204
         ):  # 204 is a special case for MAL errors
-            error("Response {}: {}".format(response.status_code, response.reason))
+            logger.error("Response {}: {}".format(response.status_code, response.reason))
             return None
         if (
             len(response.text) == 0
         ):  # Some sites *coughfunimationcough* may return successful empty responses for new shows
-            error("Empty response (probably funimation)")
+            logger.error("Empty response (probably funimation)")
             return None
 
         if json:
-            debug("Response returning as JSON")
+            logger.debug("Response returning as JSON")
             try:
                 return response.json()
             except JSONDecodeError as e:
-                error("Response is not JSON", exc_info=e)
+                logger.error("Response is not JSON", exc_info=e)
                 return None
         if xml:
-            debug("Response returning as XML")
+            logger.debug("Response returning as XML")
             # TODO: error checking
             raw_entry = xml_parser.fromstring(response.text)
             # entry = dict((attr.tag, attr.text) for attr in raw_entry)
             return raw_entry
         if html:
-            debug("Returning response as HTML")
+            logger.debug("Returning response as HTML")
             soup = BeautifulSoup(response.text, "html.parser")
             return soup
         if rss:
-            debug("Returning response as RSS feed")
+            logger.debug("Returning response as RSS feed")
             rss = feedparser.parse(response.text)
             return rss
-        debug("Response returning as text")
+        logger.debug("Response returning as text")
         return response.text
 
 
@@ -341,7 +343,7 @@ class AbstractInfoHandler(ABC, Requestable):
         self.config = None
 
     def set_config(self, config):
-        # debug("Setting config of {} to {}".format(self.key, config))
+        # logger.debug("Setting config of {} to {}".format(self.key, config))
         self.config = config
 
     @abstractmethod

@@ -1,12 +1,13 @@
 # API information
 # 	https://myanimelist.net/modules.php?go=api
 
-from logging import debug, info, warning, error
 import re
 
 from .. import AbstractInfoHandler
 from data.models import UnprocessedShow, ShowType
+import logging
 
+logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://myanimelist.net/anime/{id}/"
@@ -34,7 +35,7 @@ class InfoHandler(AbstractInfoHandler):
         url = self._api_search_base.format(q=show_name)
         result = self._mal_api_request(url, **kwargs)
         if result is None:
-            error("Failed to find show")
+            logger.error("Failed to find show")
             return list()
 
         assert result.tag == "anime"
@@ -60,13 +61,13 @@ class InfoHandler(AbstractInfoHandler):
         return shows
 
     def find_show_info(self, show_id, **kwargs):
-        debug("Getting show info for {}".format(show_id))
+        logger.debug("Getting show info for {}".format(show_id))
 
         # Request show page from MAL
         url = self._show_link_base.format(id=show_id)
         response = self._mal_request(url, **kwargs)
         if response is None:
-            error("Cannot get show page")
+            logger.error("Cannot get show page")
             return None
 
         # Parse show page
@@ -74,10 +75,10 @@ class InfoHandler(AbstractInfoHandler):
         # English
         name_elem = names_sib.find_next_sibling("div")
         if name_elem is None:
-            warning("  Name elem not found")
+            logger.warning("  Name elem not found")
             return None
         name_english = name_elem.string
-        info("  English: {}".format(name_english))
+        logger.info("  English: {}".format(name_english))
 
         names = [name_english]
         return UnprocessedShow(
@@ -91,37 +92,37 @@ class InfoHandler(AbstractInfoHandler):
         )
 
     def get_episode_count(self, link, **kwargs):
-        debug("Getting episode count")
+        logger.debug("Getting episode count")
 
         # Request show page from MAL
         url = self._show_link_base.format(id=link.site_key)
         response = self._mal_request(url, **kwargs)
         if response is None:
-            error("Cannot get show page")
+            logger.error("Cannot get show page")
             return None
 
         # Parse show page (ugh, HTML parsing)
         count_sib = response.find("span", string="Episodes:")
         if count_sib is None:
-            error("Failed to find episode count sibling")
+            logger.error("Failed to find episode count sibling")
             return None
         count_elem = count_sib.find_next_sibling(string=re.compile("\d+"))
         if count_elem is None:
-            warning("  Count not found")
+            logger.warning("  Count not found")
             return None
         count = int(count_elem.strip())
-        debug("  Count: {}".format(count))
+        logger.debug("  Count: {}".format(count))
 
         return count
 
     def get_show_score(self, show, link, **kwargs):
-        debug("Getting show score")
+        logger.debug("Getting show score")
 
         # Request show page
         url = self._show_link_base.format(id=link.site_key)
         response = self._mal_request(url, **kwargs)
         if response is None:
-            error("Cannot get show page")
+            logger.error("Cannot get show page")
             return None
 
         # Find score
@@ -129,30 +130,30 @@ class InfoHandler(AbstractInfoHandler):
         try:
             score = float(score_elem.string)
         except:
-            warning("  Count not found")
+            logger.warning("  Count not found")
             return None
-        debug("  Score: {}".format(score))
+        logger.debug("  Score: {}".format(score))
 
         return score
 
     def get_seasonal_shows(self, year=None, season=None, **kwargs):
         # TODO: use year and season if provided
-        debug("Getting season shows: year={}, season={}".format(year, season))
+        logger.debug("Getting season shows: year={}, season={}".format(year, season))
 
         # Request season page from MAL
         response = self._mal_request(self._season_show_url, **kwargs)
         if response is None:
-            error("Cannot get show list")
+            logger.error("Cannot get show list")
             return list()
 
         # Parse page (ugh, HTML parsing. Where's the useful API, MAL?)
         lists = response.find_all(class_="seasonal-anime-list")
         if len(lists) == 0:
-            error("Invalid page? Lists not found")
+            logger.error("Invalid page? Lists not found")
             return list()
         new_list = lists[0].find_all(class_="seasonal-anime")
         if len(new_list) == 0:
-            error("Invalid page? Shows not found in list")
+            logger.error("Invalid page? Shows not found in list")
             return list()
 
         new_shows = list()
@@ -192,7 +193,7 @@ class InfoHandler(AbstractInfoHandler):
 
     def _mal_api_request(self, url, **kwargs):
         if "username" not in self.config or "password" not in self.config:
-            error("Username and password required for MAL requests")
+            logger.error("Username and password required for MAL requests")
             return None
 
         auth = (self.config["username"], self.config["password"])

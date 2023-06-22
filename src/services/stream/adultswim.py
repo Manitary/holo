@@ -1,11 +1,12 @@
-from logging import debug, info, warning, error, exception
 import re
 from datetime import datetime, timedelta
 import dateutil.parser
 
 from .. import AbstractServiceHandler
 from data.models import Episode, UnprocessedStream
+import logging
 
+logger = logging.getLogger(__name__)
 
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.adultswim.com/videos/{id}/"
@@ -17,7 +18,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Episode finding
 
     def get_all_episodes(self, stream, **kwargs):
-        info(f"Getting live episodes for {self.name}/{stream.show_key}")
+        logger.info(f"Getting live episodes for {self.name}/{stream.show_key}")
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Check episode validity and digest
@@ -27,25 +28,25 @@ class ServiceHandler(AbstractServiceHandler):
                 try:
                     episodes.append(_digest_episode(episode_data))
                 except:
-                    exception(
+                    logger.exception(
                         f"Problem digesting episode for {self.name}/{stream.show_key}"
                     )
 
         if len(episode_datas) > 0:
-            debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
+            logger.debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
         else:
-            debug("  No episode found")
+            logger.debug("  No episode found")
         return episodes
 
     def _get_feed_episodes(self, show_key, **kwargs):
-        info(f"Getting episodes for {self.name}/{show_key}")
+        logger.info(f"Getting episodes for {self.name}/{show_key}")
 
         url = self._get_feed_url(show_key)
 
         # Send request
         response = self.request(url, html=True, **kwargs)
         if response is None:
-            error(f"Cannot get show page for {self.name}/{show_key}")
+            logger.error(f"Cannot get show page for {self.name}/{show_key}")
             return list()
 
         # Parse html page
@@ -62,12 +63,12 @@ class ServiceHandler(AbstractServiceHandler):
     # Remove info getting
 
     def get_stream_info(self, stream, **kwargs):
-        info(f"Getting stream info for {self.name}/{stream.show_key}")
+        logger.info(f"Getting stream info for {self.name}/{stream.show_key}")
 
         url = self._get_feed_url(stream.show_key)
         response = self.request(url, html=True, **kwargs)
         if response is None:
-            error("Cannot get feed")
+            logger.error("Cannot get feed")
             return None
 
         stream.name = response.find("h1", itemprop="name").text
@@ -97,14 +98,14 @@ def _is_valid_episode(episode_data, show_key):
 
     date_diff = datetime.utcnow() - date
     if date_diff >= timedelta(days=2):
-        debug("  Episode too old")
+        logger.debug("  Episode too old")
         return False
 
     return True
 
 
 def _digest_episode(feed_episode):
-    debug("Digesting episode")
+    logger.debug("Digesting episode")
 
     name = feed_episode.find("h4", itemprop="name", class_="episode__title").text
     link = feed_episode.find("a", itemprop="url", class_="episode__link").href

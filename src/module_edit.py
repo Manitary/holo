@@ -1,33 +1,34 @@
-from logging import debug, info, warning, error, exception
+import logging
 
 import services
 from data.models import UnprocessedShow, UnprocessedStream, ShowType, str_to_showtype
 
+logger = logging.getLogger(__name__)
 
 def main(config, db, *args, **kwargs):
     if len(args) == 1:
         if _edit_with_file(db, args[0]):
-            info("Edit successful; saving")
+            logger.info("Edit successful; saving")
             db.commit()
         else:
-            error("Edit failed; reverting")
+            logger.error("Edit failed; reverting")
             db.rollback()
     else:
-        warning("Nothing to do")
+        logger.warning("Nothing to do")
 
 
 def _edit_with_file(db, edit_file):
     import yaml
 
-    info('Parsing show edit file "{}"'.format(edit_file))
+    logger.info('Parsing show edit file "{}"'.format(edit_file))
     try:
         with open(edit_file, "r", encoding="UTF-8") as f:
             parsed = list(yaml.full_load_all(f))
     except yaml.YAMLError:
-        exception("Failed to parse edit file")
+        logger.exception("Failed to parse edit file")
         return
 
-    debug("  num shows={}".format(len(parsed)))
+    logger.debug("  num shows={}".format(len(parsed)))
 
     for doc in parsed:
         name = doc["title"]
@@ -37,11 +38,11 @@ def _edit_with_file(db, edit_file):
         has_source = doc.get("has_source", False)
         is_nsfw = doc.get("is_nsfw", False)
 
-        info('Adding show "{}" ({})'.format(name, stype))
-        debug("  has_source={}".format(has_source))
-        debug("  is_nsfw={}".format(is_nsfw))
+        logger.info('Adding show "{}" ({})'.format(name, stype))
+        logger.debug("  has_source={}".format(has_source))
+        logger.debug("  is_nsfw={}".format(is_nsfw))
         if stype == ShowType.UNKNOWN:
-            error('Invalid show type "{}"'.format(stype))
+            logger.error('Invalid show type "{}"'.format(stype))
             return False
 
         show = UnprocessedShow(
@@ -53,14 +54,14 @@ def _edit_with_file(db, edit_file):
             is_nsfw=is_nsfw,
         )
         found_ids = db.search_show_ids_by_names(name, exact=True)
-        debug("Found ids: {found_ids}")
+        logger.debug("Found ids: {found_ids}")
         if len(found_ids) == 0:
             show_id = db.add_show(show, commit=False)
         elif len(found_ids) == 1:
             show_id = found_ids.pop()
             db.update_show(show_id, show, commit=False)
         else:
-            error("More than one ID found for show")
+            logger.error("More than one ID found for show")
             return False
 
         # Info
@@ -71,18 +72,18 @@ def _edit_with_file(db, edit_file):
                 if not url:
                     continue
 
-                debug("  Info {}: {}".format(info_key, url))
+                logger.debug("  Info {}: {}".format(info_key, url))
                 info_handler = services.get_link_handler(key=info_key)
                 if info_handler:
                     info_id = info_handler.extract_show_id(url)
-                    debug("    id={}".format(info_id))
+                    logger.debug("    id={}".format(info_id))
 
                     if not db.has_link(info_key, info_id, show_id):
                         show.site_key = info_key
                         show.show_key = info_id
                         db.add_link(show, show_id, commit=False)
                 else:
-                    error("    Info handler not installed")
+                    logger.error("    Info handler not installed")
 
         # Streams
         if "streams" in doc:
@@ -99,16 +100,16 @@ def _edit_with_file(db, edit_file):
                             remote_offset = int(url[roi + 1 :])
                         url = url[:roi]
                 except:
-                    exception('Improperly formatted stream URL "{}"'.format(url))
+                    logger.exception('Improperly formatted stream URL "{}"'.format(url))
                     continue
 
-                info("  Stream {}: {}".format(service_key, url))
+                logger.info("  Stream {}: {}".format(service_key, url))
 
                 service_id = service_key.split("|")[0]
                 stream_handler = services.get_service_handler(key=service_id)
                 if stream_handler:
                     show_key = stream_handler.extract_show_key(url)
-                    debug("    id={}".format(show_key))
+                    logger.debug("    id={}".format(show_key))
 
                     if not db.has_stream(service_id, show_key):
                         s = UnprocessedStream(
@@ -129,7 +130,7 @@ def _edit_with_file(db, edit_file):
                     service, service_name = service_key.split("|", maxsplit=1)
                     db.add_lite_stream(show_id, service, service_name, url)
                 else:
-                    error("    Stream handler not installed")
+                    logger.error("    Stream handler not installed")
 
         # Aliases
         if "alias" in doc:
@@ -137,6 +138,6 @@ def _edit_with_file(db, edit_file):
             for alias in aliases:
                 if alias != "":
                     db.add_alias(show_id, alias)
-            info(f"Added {len(aliases)} alias{'es' if len(aliases) > 1 else ''}")
+            logger.info(f"Added {len(aliases)} alias{'es' if len(aliases) > 1 else ''}")
 
     return True

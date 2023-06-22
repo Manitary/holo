@@ -8,12 +8,14 @@
 # 	https://anidb.net/perl-bin/animedb.pl?tvseries=1&show=calendar
 # 	- Based on year and month, defaults to current month
 
-from logging import debug, info, warning, error
 import re
+
 
 from .. import AbstractInfoHandler
 from data.models import UnprocessedShow, ShowType
+import logging
 
+logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://anidb.net/perl-bin/animedb.pl?show=anime&aid={id}"
@@ -48,12 +50,12 @@ class InfoHandler(AbstractInfoHandler):
         return []
 
         # TODO: use year and season if provided
-        debug("Getting season shows: year={}, season={}".format(year, season))
+        logger.debug("Getting season shows: year={}, season={}".format(year, season))
 
         # Request season page from AniDB
         response = self._site_request(self._season_url, **kwargs)
         if response is None:
-            error("Cannot get show list")
+            logger.error("Cannot get show list")
             return list()
 
         # Parse page
@@ -70,7 +72,7 @@ class InfoHandler(AbstractInfoHandler):
             data = show.find(class_="data")
             more_names = list()
             show_info_str = data.find(class_="series").string.strip()
-            debug("Show info: {}".format(show_info_str))
+            logger.debug("Show info: {}".format(show_info_str))
             show_info = show_info_str.split(", ")
             show_type = _convert_show_type(show_info[0])
             if len(show_info) == 1:

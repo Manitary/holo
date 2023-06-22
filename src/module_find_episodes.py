@@ -1,10 +1,10 @@
-from logging import debug, info, warning, error
+import logging
 from datetime import date, timedelta
 
 import services
 from data.models import Stream
 import reddit
-
+logger = logging.getLogger(__name__)
 
 def main(config, db, **kwargs):
     reddit.init_reddit(config)
@@ -19,12 +19,12 @@ def main(config, db, **kwargs):
             service_handler = services.get_service_handler(service)
 
             streams = db.get_streams(service=service)
-            debug("{} streams found".format(len(streams)))
+            logger.debug("{} streams found".format(len(streams)))
 
             recent_episodes = service_handler.get_recent_episodes(
                 streams, useragent=config.useragent
             )
-            info(
+            logger.info(
                 f"{len(recent_episodes)} episodes for active shows on service {service}"
             )
 
@@ -33,18 +33,18 @@ def main(config, db, **kwargs):
                 if show is None or not show.enabled:
                     continue
 
-                info('Checking stream "{}"'.format(stream.show_key))
-                debug(stream)
+                logger.info('Checking stream "{}"'.format(stream.show_key))
+                logger.debug(stream)
 
                 if not episodes:
-                    info("  Show/episode not found")
+                    logger.info("  Show/episode not found")
                     continue
 
                 for episode in sorted(episodes, key=lambda e: e.number):
                     if _process_new_episode(config, db, show, stream, episode):
                         has_new_episode.append(show)
         except IOError:
-            error(f"Error while getting shows on service {service}")
+            logger.error(f"Error while getting shows on service {service}")
 
     # Check generic services
     # Note : selecting only shows with missing streams avoids troll torrents,
@@ -54,18 +54,18 @@ def main(config, db, **kwargs):
         db.get_shows(delayed=True)
     )
     if len(other_shows) > 0:
-        info("Checking generic services for {} shows".format(len(other_shows)))
+        logger.info("Checking generic services for {} shows".format(len(other_shows)))
 
     other_streams = [Stream.from_show(show) for show in other_shows]
     for service in enabled_services:
         try:
             service_handler = services.get_service_handler(service)
             if service_handler.is_generic:
-                debug("    Checking service {}".format(service_handler.name))
+                logger.debug("    Checking service {}".format(service_handler.name))
                 recent_episodes = service_handler.get_recent_episodes(
                     other_streams, useragent=config.useragent
                 )
-                info(
+                logger.info(
                     f"{len(recent_episodes)} episodes for active shows on generic service {service}"
                 )
 
@@ -74,42 +74,42 @@ def main(config, db, **kwargs):
                     if show is None or not show.enabled:
                         continue
 
-                    info('Checking stream "{}"'.format(stream.show_key))
-                    debug(stream)
+                    logger.info('Checking stream "{}"'.format(stream.show_key))
+                    logger.debug(stream)
 
                     if not episodes:
-                        info("  No episode found")
+                        logger.info("  No episode found")
                         continue
 
                     for episode in sorted(episodes, key=lambda e: e.number):
                         if _process_new_episode(config, db, show, stream, episode):
                             has_new_episode.append(show)
         except IOError:
-            error(f"Error while getting shows on service {service}")
+            logger.error(f"Error while getting shows on service {service}")
 
-    debug("")
-    debug("Summary of shows with new episodes:")
+    logger.debug("")
+    logger.debug("Summary of shows with new episodes:")
     for show in has_new_episode:
-        debug("  {}".format(show.name))
-    debug("")
+        logger.debug("  {}".format(show.name))
+    logger.debug("")
 
 
 # yesterday = date.today() - timedelta(days=1)
 
 
 def _process_new_episode(config, db, show, stream, episode):
-    debug("Processing new episode")
-    debug(episode)
+    logger.debug("Processing new episode")
+    logger.debug(episode)
 
-    debug("  Date: {}".format(episode.date))
-    debug("  Is live: {}".format(episode.is_live))
+    logger.debug("  Date: {}".format(episode.date))
+    logger.debug("  Is live: {}".format(episode.is_live))
     # if episode.is_live and (episode.date is None or episode.date.date() > yesterday):
     if episode.is_live:
         # Adjust episode to internal numbering
         int_episode = stream.to_internal_episode(episode)
-        debug("  Adjusted num: {}".format(int_episode.number))
+        logger.debug("  Adjusted num: {}".format(int_episode.number))
         if int_episode.number <= 0:
-            error("Episode number must be positive")
+            logger.error("Episode number must be positive")
             return False
 
         # Check if already in database
@@ -123,15 +123,15 @@ def _process_new_episode(config, db, show, stream, episode):
             and latest_episode.number > 0
             and int_episode.number > latest_episode.number + 1
         )
-        debug(
+        logger.debug(
             "  Latest ep num: {}".format(
                 "none" if latest_episode is None else latest_episode.number
             )
         )
-        debug(f"  Already seen: {already_seen}")
-        debug(f"  Gap between episodes: {episode_number_gap}")
+        logger.debug(f"  Already seen: {already_seen}")
+        logger.debug(f"  Gap between episodes: {episode_number_gap}")
 
-        info(
+        logger.info(
             f"  Posted on {episode.date}, "
             + f"number {int_episode.number}, "
             + f"{'already seen' if already_seen else 'new'}, "
@@ -143,7 +143,7 @@ def _process_new_episode(config, db, show, stream, episode):
             post_url = _create_reddit_post(
                 config, db, show, stream, int_episode, submit=not config.debug
             )
-            info("  Post URL: {}".format(post_url))
+            logger.info("  Post URL: {}".format(post_url))
             if post_url is not None:
                 post_url = post_url.replace("http:", "https:")
                 db.add_episode(stream.show, int_episode.number, post_url)
@@ -165,11 +165,11 @@ def _process_new_episode(config, db, show, stream, episode):
                             submit=not config.debug,
                         )
             else:
-                error("  Episode not submitted")
+                logger.error("  Episode not submitted")
 
             return True
     else:
-        info("  Episode not live")
+        logger.info("  Episode not live")
 
     return False
 
@@ -181,10 +181,10 @@ def _create_reddit_post(config, db, show, stream, episode, submit=True):
     if submit:
         new_post = reddit.submit_text_post(config.subreddit, title, body)
         if new_post is not None:
-            debug("Post successful")
+            logger.debug("Post successful")
             return reddit.get_shortlink_from_id(new_post.id)
         else:
-            error("Failed to submit post")
+            logger.error("Failed to submit post")
     return None
 
 
@@ -204,12 +204,12 @@ def _create_post_contents(config, db, show, stream, episode, quiet=False):
     title = _format_post_text(
         config, db, title, config.post_formats, show, episode, stream
     )
-    info("Title:\n" + title)
+    logger.info("Title:\n" + title)
     body = _format_post_text(
         config, db, config.post_body, config.post_formats, show, episode, stream
     )
     if not quiet:
-        info("Body:\n" + body)
+        logger.info("Body:\n" + body)
     return title, body
 
 
@@ -264,7 +264,7 @@ def _create_post_title(config, show, episode):
 
 
 def _gen_text_spoiler(formats, show):
-    debug(
+    logger.debug(
         "Generating spoiler text for show {}, spoiler is {}".format(
             show, show.has_source
         )
@@ -275,7 +275,7 @@ def _gen_text_spoiler(formats, show):
 
 
 def _gen_text_streams(db, formats, show):
-    debug("Generating stream text for show {}".format(show))
+    logger.debug("Generating stream text for show {}".format(show))
     stream_texts = list()
 
     streams = db.get_streams(show=show)
@@ -307,7 +307,7 @@ def _gen_text_streams(db, formats, show):
 
 
 def _gen_text_links(db, formats, show):
-    debug("Generating stream text for show {}".format(show))
+    logger.debug("Generating stream text for show {}".format(show))
     links = db.get_links(show=show)
     link_texts = list()
     link_texts_bottom = list()  # for links that come last, e.g. official and subreddit
@@ -335,11 +335,11 @@ def _gen_text_links(db, formats, show):
 
 def _gen_text_discussions(db, formats, show, stream):
     episodes = db.get_episodes(show)
-    debug("Num previous episodes: {}".format(len(episodes)))
+    logger.debug("Num previous episodes: {}".format(len(episodes)))
     N_LINES = 13
     n_episodes = 4 * N_LINES  # maximum 4 columns
     if len(episodes) > n_episodes:
-        debug(f"Clipping to most recent {n_episodes} episodes")
+        logger.debug(f"Clipping to most recent {n_episodes} episodes")
         episodes = episodes[-n_episodes:]
     if len(episodes) > 0:
         table = []

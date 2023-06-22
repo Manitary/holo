@@ -1,9 +1,11 @@
-from logging import debug, error, exception
 import sqlite3, re
 from functools import wraps, lru_cache
 from unidecode import unidecode
 from typing import Set, List, Optional
 from datetime import datetime, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Show,
@@ -32,7 +34,7 @@ def living_in(the_database):
         db = sqlite3.connect(the_database)
         db.execute("PRAGMA foreign_keys=ON")
     except sqlite3.OperationalError:
-        error("Failed to open database, {}".format(the_database))
+        logger.error("Failed to open database, {}".format(the_database))
         return None
     return DatabaseDatabase(db)
 
@@ -52,7 +54,7 @@ def db_error(f):
             f(*args, **kwargs)
             return True
         except:
-            exception("Database exception thrown")
+            logger.exception("Database exception thrown")
             return False
 
     return protected
@@ -68,7 +70,7 @@ def db_error_default(default_value):
             try:
                 return f(*args, **kwargs)
             except:
-                exception("Database exception thrown")
+                logger.exception("Database exception thrown")
                 return value
 
         return protected
@@ -291,7 +293,7 @@ class DatabaseDatabase:
                 (key,),
             )
         else:
-            error("ID or key required to get service")
+            logger.error("ID or key required to get service")
             return None
         service = self.q.fetchone()
         return Service(**service)
@@ -316,7 +318,7 @@ class DatabaseDatabase:
     @db_error_default(None)
     def get_stream(self, id=None, service_tuple=None) -> Optional[Stream]:
         if id is not None:
-            debug("Getting stream for id {}".format(id))
+            logger.debug("Getting stream for id {}".format(id))
 
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams WHERE id = ?",
@@ -324,23 +326,23 @@ class DatabaseDatabase:
             )
             stream = self.q.fetchone()
             if stream is None:
-                error("Stream {} not found".format(id))
+                logger.error("Stream {} not found".format(id))
                 return None
             stream = Stream(**stream)
         elif service_tuple is not None:
             service, show_key = service_tuple
-            debug("Getting stream for {}/{}".format(service, show_key))
+            logger.debug("Getting stream for {}/{}".format(service, show_key))
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams WHERE service = ? AND show_key = ?",
                 (service.id, show_key),
             )
             stream = self.q.fetchone()
             if stream is None:
-                error("Stream {} not found".format(id))
+                logger.error("Stream {} not found".format(id))
                 return None
             stream = Stream(**stream)
         else:
-            error("Nothing provided to get stream")
+            logger.error("Nothing provided to get stream")
             return None
 
         stream.show = self.get_show(id=stream.show)  # convert show id to show model
@@ -352,7 +354,7 @@ class DatabaseDatabase:
     ) -> List[Stream]:
         # Not the best combination of options, but it's only the usage needed
         if service is not None and active == True:
-            debug("Getting all active streams for service {}".format(service.key))
+            logger.debug("Getting all active streams for service {}".format(service.key))
             service = self.get_service(key=service.key)
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
@@ -361,7 +363,7 @@ class DatabaseDatabase:
                 (service.id,),
             )
         elif service is not None and active == False:
-            debug("Getting all inactive streams for service {}".format(service.key))
+            logger.debug("Getting all inactive streams for service {}".format(service.key))
             service = self.get_service(key=service.key)
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
@@ -369,7 +371,7 @@ class DatabaseDatabase:
                 (service.id,),
             )
         elif show is not None and active == True:
-            debug("Getting all streams for show {}".format(show.id))
+            logger.debug("Getting all streams for show {}".format(show.id))
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE show = ? AND active = 1 AND \
@@ -377,14 +379,14 @@ class DatabaseDatabase:
                 (show.id,),
             )
         elif show is not None and active == False:
-            debug("Getting all streams for show {}".format(show.id))
+            logger.debug("Getting all streams for show {}".format(show.id))
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE show = ? AND active = 0",
                 (show.id,),
             )
         elif unmatched:
-            debug("Getting unmatched streams")
+            logger.debug("Getting unmatched streams")
             self.q.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE show IS NULL"
@@ -401,7 +403,7 @@ class DatabaseDatabase:
 							WHERE (name IS NULL OR name = '') AND active = 0"
             )
         else:
-            error("A service or show must be provided to get streams")
+            logger.error("A service or show must be provided to get streams")
             return list()
 
         streams = self.q.fetchall()
@@ -421,7 +423,7 @@ class DatabaseDatabase:
 
     @db_error
     def add_stream(self, raw_stream: UnprocessedStream, show_id, commit=True):
-        debug("Inserting stream: {}".format(raw_stream))
+        logger.debug("Inserting stream: {}".format(raw_stream))
 
         service = self.get_service(key=raw_stream.service_key)
         self.q.execute(
@@ -452,7 +454,7 @@ class DatabaseDatabase:
         remote_offset=None,
         commit=True,
     ):
-        debug("Updating stream: id={}".format(stream.id))
+        logger.debug("Updating stream: id={}".format(stream.id))
         if show is not None:
             self.q.execute(
                 "UPDATE Streams SET show = ? WHERE id = ?", (show, stream.id)
@@ -488,27 +490,27 @@ class DatabaseDatabase:
         self, service=None, show=None, missing_link=False
     ) -> List[LiteStream]:
         if service is not None:
-            debug(f"Getting all lite streams for service key {service}")
+            logger.debug(f"Getting all lite streams for service key {service}")
             self.q.execute(
                 "SELECT show, service, service_name, url FROM LiteStreams \
 							WHERE service = ?",
                 (service,),
             )
         elif show is not None:
-            debug(f"Getting all lite streams for show {show}")
+            logger.debug(f"Getting all lite streams for show {show}")
             self.q.execute(
                 "SELECT show, service, service_name, url FROM LiteStreams \
 							WHERE show = ?",
                 (show.id,),
             )
         elif missing_link:
-            debug("Getting lite streams without link")
+            logger.debug("Getting lite streams without link")
             self.q.execute(
                 "SELECT show, service, service_name, url FROM LiteStreams \
 							WHERE url IS NULL"
             )
         else:
-            error("A service or show must be provided to get lite streams")
+            logger.error("A service or show must be provided to get lite streams")
             return list()
 
         lite_streams = self.q.fetchall()
@@ -517,7 +519,7 @@ class DatabaseDatabase:
 
     @db_error
     def add_lite_stream(self, show, service, service_name, url):
-        debug(f"Inserting lite stream {service} ({url}) for show {show}")
+        logger.debug(f"Inserting lite stream {service} ({url}) for show {show}")
         self.q.execute(
             "INSERT INTO LiteStreams (show, service, service_name, url) values (?, ?, ?, ?)",
             (show, service, service_name, url),
@@ -536,7 +538,7 @@ class DatabaseDatabase:
                 "SELECT id, key, name, enabled FROM LinkSites WHERE key = ?", (key,)
             )
         else:
-            error("ID or key required to get link site")
+            logger.error("ID or key required to get link site")
             return None
         site = self.q.fetchone()
         if site is None:
@@ -563,7 +565,7 @@ class DatabaseDatabase:
     @db_error_default(list())
     def get_links(self, show: Show = None) -> List[Link]:
         if show is not None:
-            debug("Getting all links for show {}".format(show.id))
+            logger.debug("Getting all links for show {}".format(show.id))
 
             # Get all streams with show ID
             self.q.execute(
@@ -573,12 +575,12 @@ class DatabaseDatabase:
             links = [Link(**link) for link in links]
             return links
         else:
-            error("A show must be provided to get links")
+            logger.error("A show must be provided to get links")
             return list()
 
     @db_error_default(None)
     def get_link(self, show: Show, link_site: LinkSite) -> Optional[Link]:
-        debug("Getting link for show {} and site {}".format(show.id, link_site.key))
+        logger.debug("Getting link for show {} and site {}".format(show.id, link_site.key))
 
         self.q.execute(
             "SELECT site, show, site_key FROM Links WHERE show = ? AND site = ?",
@@ -607,11 +609,11 @@ class DatabaseDatabase:
 
     @db_error
     def add_link(self, raw_show: UnprocessedShow, show_id, commit=True):
-        debug("Inserting link: {}/{}".format(show_id, raw_show))
+        logger.debug("Inserting link: {}/{}".format(show_id, raw_show))
 
         site = self.get_link_site(key=raw_show.site_key)
         if site is None:
-            error('  Invalid site "{}"'.format(raw_show.site_key))
+            logger.error('  Invalid site "{}"'.format(raw_show.site_key))
             return
         site_key = raw_show.show_key
 
@@ -665,7 +667,7 @@ class DatabaseDatabase:
 
     @db_error_default(None)
     def get_show(self, id=None, stream=None) -> Optional[Show]:
-        # debug("Getting show from database")
+        # logger.debug("Getting show from database")
 
         # Get show ID
         if stream and not id:
@@ -673,7 +675,7 @@ class DatabaseDatabase:
 
         # Get show
         if id is None:
-            error("Show ID not provided to get_show")
+            logger.error("Show ID not provided to get_show")
             return None
         self.q.execute(
             "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
@@ -689,7 +691,7 @@ class DatabaseDatabase:
 
     @db_error_default(None)
     def get_show_by_name(self, name) -> Optional[Show]:
-        # debug("Getting show from database")
+        # logger.debug("Getting show from database")
 
         self.q.execute(
             "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
@@ -710,7 +712,7 @@ class DatabaseDatabase:
 
     @db_error_default(None)
     def add_show(self, raw_show: UnprocessedShow, commit=True) -> int:
-        debug("Inserting show: {}".format(raw_show))
+        logger.debug("Inserting show: {}".format(raw_show))
 
         name = raw_show.name
         name_en = raw_show.name_en
@@ -741,7 +743,7 @@ class DatabaseDatabase:
 
     @db_error_default(None)
     def update_show(self, show_id: str, raw_show: UnprocessedShow, commit=True):
-        debug("Updating show: {}".format(raw_show))
+        logger.debug("Updating show: {}".format(raw_show))
 
         # name = raw_show.name
         name_en = raw_show.name_en
@@ -777,7 +779,7 @@ class DatabaseDatabase:
 
     @db_error
     def set_show_episode_count(self, show, length):
-        debug(
+        logger.debug(
             "Updating show episode count in database: {}, {}".format(show.name, length)
         )
         self.q.execute("UPDATE Shows SET length = ? WHERE id = ?", (length, show.id))
@@ -785,13 +787,13 @@ class DatabaseDatabase:
 
     @db_error
     def set_show_delayed(self, show: Show, delayed=True):
-        debug("Marking show {} as delayed: {}".format(show.name, delayed))
+        logger.debug("Marking show {} as delayed: {}".format(show.name, delayed))
         self.q.execute("UPDATE Shows SET delayed = ? WHERE id = ?", (delayed, show.id))
         self.commit()
 
     @db_error
     def set_show_enabled(self, show: Show, enabled=True, commit=True):
-        debug(
+        logger.debug(
             "Marking show {} as {}".format(
                 show.name, "enabled" if enabled else "disabled"
             )
@@ -808,7 +810,7 @@ class DatabaseDatabase:
             (stream.show, episode_num),
         )
         num_found = self.get_count()
-        debug(
+        logger.debug(
             "Found {} entries matching show {}, episode {}".format(
                 num_found, stream.show, episode_num
             )
@@ -828,7 +830,7 @@ class DatabaseDatabase:
 
     @db_error
     def add_episode(self, show, episode_num, post_url):
-        debug(
+        logger.debug(
             "Inserting episode {} for show {} ({})".format(
                 episode_num, show.id, post_url
             )
@@ -877,7 +879,7 @@ class DatabaseDatabase:
     def get_episode_score_avg(
         self, show: Show, episode: Episode
     ) -> Optional[EpisodeScore]:
-        debug("Calculating avg score for {} ({})".format(show.name, show.id))
+        logger.debug("Calculating avg score for {} ({})".format(show.name, show.id))
         self.q.execute(
             "SELECT score FROM Scores WHERE show=? AND episode=?",
             (show.id, episode.number),
@@ -885,7 +887,7 @@ class DatabaseDatabase:
         scores = [s[0] for s in self.q.fetchall()]
         if len(scores) > 0:
             score = sum(scores) / len(scores)
-            debug("  Score: {} (from {} scores)".format(score, len(scores)))
+            logger.debug("  Score: {} (from {} scores)".format(score, len(scores)))
             return EpisodeScore(show_id=show.id, episode=episode.number, score=score)
         return None
 
@@ -909,7 +911,7 @@ class DatabaseDatabase:
         elif key is not None:
             self.q.execute("SELECT id, key FROM PollSites WHERE key = ?", (key,))
         else:
-            error("ID or key required to get poll site")
+            logger.error("ID or key required to get poll site")
             return None
         site = self.q.fetchone()
         if site is None:
@@ -961,7 +963,7 @@ class DatabaseDatabase:
                 "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE score is NULL AND show IN (SELECT id FROM Shows where enabled = 1)"
             )
         else:
-            error("Need to select a show to get polls")
+            logger.error("Need to select a show to get polls")
             return list()
         for poll in self.q.fetchall():
             polls.append(Poll(**poll))
@@ -972,7 +974,7 @@ class DatabaseDatabase:
     def search_show_ids_by_names(self, *names, exact=False) -> Set[Show]:
         shows = set()
         for name in names:
-            debug("Searching shows by name: {}".format(name))
+            logger.debug("Searching shows by name: {}".format(name))
             if exact:
                 self.q.execute(
                     "SELECT show, name FROM ShowNames WHERE name = ?", (name,)
@@ -984,7 +986,7 @@ class DatabaseDatabase:
                 )
             matched = self.q.fetchall()
             for match in matched:
-                debug("  Found match: {} | {}".format(match["show"], match["name"]))
+                logger.debug("  Found match: {} | {}".format(match["show"], match["name"]))
                 shows.add(match["show"])
         return shows
 

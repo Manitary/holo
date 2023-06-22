@@ -1,6 +1,7 @@
 import configparser
-from logging import warning
+import logging
 
+logger = logging.getLogger(__name__)
 
 class WhitespaceFriendlyConfigParser(configparser.ConfigParser):
     def get(self, section, option, *args, **kwargs):
@@ -127,7 +128,7 @@ def validate(config):
     if is_bad_str(config.useragent):
         return "useragent missing"
     if config.ratelimit < 0:
-        warning("Rate limit can't be negative, defaulting to 1.0")
+        logger.warning("Rate limit can't be negative, defaulting to 1.0")
         config.ratelimit = 1.0
     if is_bad_str(config.subreddit):
         return "subreddit missing"

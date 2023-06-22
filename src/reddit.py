@@ -1,5 +1,7 @@
-from logging import debug, info, warning, error, exception
 import praw
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Initialization
 
@@ -14,7 +16,7 @@ def init_reddit(config):
 
 def _connect_reddit():
     if _config is None:
-        error("Can't connect to reddit without a config")
+        logger.error("Can't connect to reddit without a config")
         return None
 
     return praw.Reddit(
@@ -40,7 +42,7 @@ def _ensure_connection():
 def submit_text_post(subreddit, title, body):
     _ensure_connection()
     try:
-        info("Checking availability of flair {_config.post_flair_id}")
+        logger.info("Checking availability of flair {_config.post_flair_id}")
         flair_ids = [
             ft["flair_template_id"]
             for ft in _r.subreddit(subreddit).flair.link_templates.user_selectable()
@@ -48,10 +50,10 @@ def submit_text_post(subreddit, title, body):
         if _config.post_flair_id in flair_ids:
             flair_id, flair_text = _config.post_flair_id, _config.post_flair_text
         else:
-            warning("Flair not selectable, flairing will be disabled")
+            logger.warning("Flair not selectable, flairing will be disabled")
             flair_id, flair_text = None, None
 
-        info("Submitting post to {}".format(subreddit))
+        logger.info("Submitting post to {}".format(subreddit))
         new_post = _r.subreddit(subreddit).submit(
             title,
             selftext=body,
@@ -61,19 +63,19 @@ def submit_text_post(subreddit, title, body):
         )
         return new_post
     except:
-        exception("Failed to submit text post")
+        logger.exception("Failed to submit text post")
         return None
 
 
 def edit_text_post(url, body):
     _ensure_connection()
     try:
-        info(f"Editing post {url}")
+        logger.info(f"Editing post {url}")
         post = get_text_post(url)
         post.edit(body)
         return post
     except:
-        exception("Failed to submit text post")
+        logger.exception("Failed to submit text post")
         return None
 
 
@@ -83,7 +85,7 @@ def get_text_post(url):
         new_post = _r.submission(url=url)
         return new_post
     except:
-        exception("Failed to retrieve text post")
+        logger.exception("Failed to retrieve text post")
         return None
 
 
@@ -104,7 +106,7 @@ def get_text_post(url):
 # 	if distinguish and reply is not None:
 # 		response = reply.distinguish()
 # 		if len(response) > 0 and len(response["errors"]) > 0:
-# 			error("Failed to distinguish: {}".format(response["errors"]))
+# 			logger.error("Failed to distinguish: {}".format(response["errors"]))
 
 # Utilities
 

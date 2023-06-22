@@ -1,11 +1,12 @@
 # API docs: https://anilist-api.readthedocs.org/en/latest/
 
-from logging import debug, info, warning, error
 import re
 
 from .. import AbstractInfoHandler
 from data.models import UnprocessedShow, ShowType
+import logging
 
+logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://anilist.co/anime/{id}"
@@ -37,13 +38,13 @@ class InfoHandler(AbstractInfoHandler):
         return None
 
     def get_seasonal_shows(self, year=None, season=None, **kwargs):
-        # debug("Getting season shows: year={}, season={}".format(year, season))
+        # logger.debug("Getting season shows: year={}, season={}".format(year, season))
 
         # Request season page from AniDB
         # url = self._season_url.format(year=year, season=season)
         # response = self._site_request(url, **kwargs)
         # if response is None:
-        # 	error("Cannot get show list")
+        # 	logger.error("Cannot get show list")
         # 	return list()
 
         # Parse page

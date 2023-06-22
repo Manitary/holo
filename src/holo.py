@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 if sys.version_info[0] != 3 or sys.version_info[1] < 5:
     print("Holo requires Python version 3.5 or greater")
@@ -22,38 +25,37 @@ import services
 
 
 def main(config, args, extra_args):
-    from logging import debug, info, warning, error, exception
 
     # Set things up
     db = database.living_in(config.database)
     if not db:
-        error("Cannot continue running without a database")
+        logger.error("Cannot continue running without a database")
         return
 
     services.setup_services(config)
 
     # Run the requested module
     try:
-        debug("Running module {}".format(config.module))
+        logger.debug("Running module {}".format(config.module))
         if config.module == "setup":
-            info("Setting up database")
+            logger.info("Setting up database")
             db.setup_tables()
-            info("Registering services")
+            logger.info("Registering services")
             db.register_services(services.get_service_handlers())
             db.register_link_sites(services.get_link_handlers())
             db.register_poll_sites(services.get_poll_handlers())
         elif config.module == "edit":
-            info("Editing database")
+            logger.info("Editing database")
             import module_edit as m
 
             m.main(config, db, *extra_args)
         elif config.module == "episode":
-            info("Finding new episodes")
+            logger.info("Finding new episodes")
             import module_find_episodes as m
 
             m.main(config, db, debug=config.debug)
         elif config.module == "find":
-            info("Finding new shows")
+            logger.info("Finding new shows")
             import module_find_shows as m
 
             if args.output[0] == "db":
@@ -62,24 +64,24 @@ def main(config, args, extra_args):
                 f = extra_args[0] if len(extra_args) > 0 else "find_output.yaml"
                 m.main(config, db, True, output_file=f)
         elif config.module == "update":
-            info("Updating shows")
+            logger.info("Updating shows")
             import module_update_shows as m
 
             m.main(config, db)
         elif config.module == "create":
-            info("Creating new thread")
+            logger.info("Creating new thread")
             import module_create_threads as m
 
             m.main(config, db, *extra_args)
         elif config.module == "batch":
-            info("Batch creating threads")
+            logger.info("Batch creating threads")
             import module_batch_create as m
 
             m.main(config, db, *extra_args)
         else:
-            warning("This should never happen or you broke it!")
+            logger.warning("This should never happen or you broke it!")
     except:
-        exception("Unknown exception or error")
+        logger.exception("Unknown exception or error")
         db.rollback()
 
     db.close()
@@ -180,7 +182,6 @@ if __name__ == "__main__":
     # Start
     use_log = args.no_input
 
-    import logging
     from logging.handlers import TimedRotatingFileHandler
 
     if use_log:
@@ -208,24 +209,23 @@ if __name__ == "__main__":
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("praw-script-oauth").setLevel(logging.WARNING)
 
-    from logging import info, warning
     from time import time
 
     if use_log:
-        info("------------------------------------------------------------")
+        logger.info("------------------------------------------------------------")
     err = config_loader.validate(c)
     if err:
-        warning("Configuration state invalid: {}".format(err))
+        logger.warning("Configuration state invalid: {}".format(err))
 
     if c.debug:
-        info("DEBUG MODE ENABLED")
+        logger.info("DEBUG MODE ENABLED")
     start_time = time()
     main(c, args, args.extra)
     end_time = time()
 
     time_diff = end_time - start_time
-    info("")
-    info("Run time: {:.6} seconds".format(time_diff))
+    logger.info("")
+    logger.info("Run time: {:.6} seconds".format(time_diff))
 
     if use_log:
-        info("------------------------------------------------------------\n")
+        logger.info("------------------------------------------------------------\n")

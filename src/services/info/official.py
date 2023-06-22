@@ -1,10 +1,12 @@
 # Dummy info handler, used for official website of shows
 
-from logging import debug, info, warning, error
 import re
 
-from .. import AbstractInfoHandler
 
+from .. import AbstractInfoHandler
+import logging
+
+logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     def __init__(self):

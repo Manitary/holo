@@ -1,11 +1,12 @@
-from logging import debug, info, warning, error
 from datetime import datetime, timezone
 import requests
 import re
 
 from .. import AbstractPollHandler
 from data.models import Poll
+import logging
 
+logger = logging.getLogger(__name__)
 
 class PollHandler(AbstractPollHandler):
     OPTIONS = ["Excellent", "Great", "Good", "Mediocre", "Bad"]
@@ -52,14 +53,14 @@ class PollHandler(AbstractPollHandler):
         try:
             resp = requests.post(self._poll_post_url, data=data, **kwargs)
         except:
-            error("Could not create poll (exception in POST)")
+            logger.error("Could not create poll (exception in POST)")
             return None
 
         if resp.ok:
             match = self._poll_id_re.search(resp.url)
             return match.group(1)
         else:
-            error("Could not create poll (resp !OK)")
+            logger.error("Could not create poll (resp !OK)")
             return None
 
     def get_link(self, poll):
@@ -69,11 +70,11 @@ class PollHandler(AbstractPollHandler):
         return self._poll_results_link.format(id=poll.id)
 
     def get_score(self, poll):
-        debug(f"Getting score for show {poll.show_id} / episode {poll.episode}")
+        logger.debug(f"Getting score for show {poll.show_id} / episode {poll.episode}")
         try:
             response = self.request(self.get_results_link(poll), html=True)
         except:
-            error(
+            logger.error(
                 f"Couldn't get scores for poll {self.get_results_link(poll)} (query error)"
             )
             return None
@@ -84,24 +85,24 @@ class PollHandler(AbstractPollHandler):
             num_votes_str = response.find("span", class_="admin-total-votes").text
             num_votes = int(num_votes_str.replace(",", ""))
             if num_votes == 0:
-                warning("No vote recorded, no score returned")
+                logger.warning("No vote recorded, no score returned")
                 return None
             values = dict()
             for div in divs:
                 label = div.find("span", class_="basic-option-title").text
                 if label not in self.OPTIONS:
-                    error(f"Found unexpected label {label}, aborted")
+                    logger.error(f"Found unexpected label {label}, aborted")
                     return None
                 value_text = div.find("span", class_="basic-option-percent").text
                 score = float(value_text.strip("%")) / 100
                 values[label] = score
             results = [values[k] for k in self.OPTIONS]
-            info(f"Results: {str(results)}")
+            logger.info(f"Results: {str(results)}")
             total = sum([r * s for r, s in zip(results, range(5, 0, -1))])
             total = round(total, 2)
             return total
         except:
-            error(
+            logger.error(
                 f"Couldn't get scores for poll {self.get_results_link(poll)} (parsing error)"
             )
             return None

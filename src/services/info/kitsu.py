@@ -1,11 +1,12 @@
 # API docs: https://kitsu.docs.apiary.io
 
-from logging import debug, info, warning, error
 import re
 
 from .. import AbstractInfoHandler
 from data.models import UnprocessedShow, ShowType
+import logging
 
+logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://kitsu.io/anime/{slug}"
@@ -30,51 +31,51 @@ class InfoHandler(AbstractInfoHandler):
         return None
 
     def get_episode_count(self, link, **kwargs):
-        # debug("Getting episode count")
+        # logger.debug("Getting episode count")
 
         # Request show data from Kitsu
         # url = self._api_base + "?filter[slug]=" + link.site_key + "&fields[anime]=episodeCount"
         # response = self._site_request(url, **kwargs)
         # if response is None:
-        # 	error("Cannot get show data")
+        # 	logger.error("Cannot get show data")
         # 	return None
 
         # Parse show data
         # count = response["data"][0]["attributes"]["episodeCount"]
         # if count is None:
-        # 	warning("  Count not found")
+        # 	logger.warning("  Count not found")
         # 	return None
 
         # return count
         return None
 
     def get_show_score(self, show, link, **kwargs):
-        # debug("Getting show score")
+        # logger.debug("Getting show score")
 
         # Request show data
         # url = self._api_base + "?filter[slug]=" + link.site_key + "&fields[anime]=averageRating"
         # response = self._site_request(url, **kwargs)
         # if response is None:
-        # 	error("Cannot get show data")
+        # 	logger.error("Cannot get show data")
         # 	return None
 
         # Find score
         # score = response["data"][0]["attributes"]["averageRating"]
         # if score is None:
-        # 	warning("  Score not found")
+        # 	logger.warning("  Score not found")
         # 	return None
 
         # return score
         return None
 
     def get_seasonal_shows(self, year=None, season=None, **kwargs):
-        # debug("Getting season shows: year={}, season={}".format(year, season))
+        # logger.debug("Getting season shows: year={}, season={}".format(year, season))
 
         # Request season data from Kitsu
         # url = self._season_url.format(year=year, season=season)
         # response = self._site_request(url, **kwargs)
         # if response is None:
-        # 	error("Cannot get show list")
+        # 	logger.error("Cannot get show list")
         # 	return list()
 
         # Parse data
@@ -85,7 +86,7 @@ class InfoHandler(AbstractInfoHandler):
         # url = self._api_base + "?filter[text]=" + show_name
         # result = self._site_request(url, **kwargs)
         # if result is None:
-        # 	error("Failed to find show")
+        # 	logger.error("Failed to find show")
         # 	return list()
 
         # shows = list()
@@ -95,19 +96,19 @@ class InfoHandler(AbstractInfoHandler):
         return list()
 
     def find_show_info(self, show_id, **kwargs):
-        # debug("Getting show info for {}".format(show_id))
+        # logger.debug("Getting show info for {}".format(show_id))
 
         # Request show data from Kitsu
         # url = self._api_base + "?filter[slug]=" + show_id + "&fields[anime]=titles,abbreviatedTitles"
         # response = self._site_request(url, **kwargs)
         # if response is None:
-        # 	error("Cannot get show data")
+        # 	logger.error("Cannot get show data")
         # 	return None
 
         # Parse show data
         # name_english = response["data"][0]["attributes"]["titles"]["en"]
         # if name_english is None:
-        # 	warning("  English name was not found")
+        # 	logger.warning("  English name was not found")
         # 	return None
 
         # names = [name_english]

@@ -1,10 +1,10 @@
-from logging import debug, info, warning, error
+import logging
 from datetime import date, timedelta
 
 import services
 from data.models import Stream, Episode
 import reddit
-
+logger = logging.getLogger(__name__)
 from module_find_episodes import (
     _create_reddit_post,
     _edit_reddit_post,
@@ -27,12 +27,12 @@ def main(config, db, show_name, episode_count):
         post_url = _create_reddit_post(
             config, db, show, stream, int_episode, submit=not config.debug
         )
-        info("  Post URL: {}".format(post_url))
+        logger.info("  Post URL: {}".format(post_url))
         if post_url is not None:
             post_url = post_url.replace("http:", "https:")
             db.add_episode(show, int_episode.number, post_url)
         else:
-            error("  Episode not submitted")
+            logger.error("  Episode not submitted")
         post_urls.append(post_url)
 
     for editing_episode in db.get_episodes(show):
@@ -58,19 +58,19 @@ def main(config, db, show_name, episode_count):
         megathread_post = None
 
     if megathread_post is not None:
-        debug("Post successful")
+        logger.debug("Post successful")
         megathread_url = reddit.get_shortlink_from_id(megathread_post.id).replace(
             "http:", "https:"
         )
     else:
-        error("Failed to submit post")
+        logger.error("Failed to submit post")
         megathread_url = None
 
     db.set_show_enabled(show, False, commit=not config.debug)
 
     for i, url in enumerate(post_urls):
-        info(f"Episode {i}: {url}")
-    info(f"Megathread: {megathread_url}")
+        logger.info(f"Episode {i}: {url}")
+    logger.info(f"Megathread: {megathread_url}")
 
 
 def _create_megathread_content(config, db, show, stream, episode_count):
@@ -84,7 +84,7 @@ def _create_megathread_content(config, db, show, stream, episode_count):
         Episode(number=episode_count),
         stream,
     )
-    info("Title:\n" + title)
+    logger.info("Title:\n" + title)
 
     body = _format_post_text(
         config,
@@ -95,7 +95,7 @@ def _create_megathread_content(config, db, show, stream, episode_count):
         Episode(number=episode_count),
         stream,
     )
-    info("Body:\n" + body)
+    logger.info("Body:\n" + body)
     return title, body
 
 
