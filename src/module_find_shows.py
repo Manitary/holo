@@ -1,12 +1,13 @@
 import logging
 from collections import OrderedDict
+from typing import Generator
 
 import yaml
 
 import services
 from config import Config
 from data.database import DatabaseDatabase
-from data.models import ShowType
+from data.models import ShowType, UnprocessedShow, UnprocessedStream
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,9 @@ represent_dict_order = lambda self, data: self.represent_mapping(
 yaml.add_representer(OrderedDict, represent_dict_order)
 
 
-def create_season_config(config, db, output_file):
+def create_season_config(
+    config: Config, db: DatabaseDatabase, output_file: str
+) -> None:
     logger.info("Checking for new shows")
     shows = _get_primary_source_shows(config)
 
@@ -46,7 +49,7 @@ def create_season_config(config, db, output_file):
         yaml.dump_all(shows, f, explicit_start=True, default_flow_style=False)
 
 
-def _get_primary_source_shows(config):
+def _get_primary_source_shows(config: Config):
     logger.debug("Retrieving primary show list")
     link_handlers = services.get_link_handlers()
     service_handlers = services.get_service_handlers()
@@ -107,7 +110,9 @@ def _get_primary_source_shows(config):
 #############
 
 
-def check_new_shows(config, db, update_db=True):
+def check_new_shows(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Checking for new shows")
     for raw_show in _get_new_season_shows(config, db):
         if (
@@ -118,37 +123,42 @@ def check_new_shows(config, db, update_db=True):
             logger.debug("    name=%s", raw_show.name)
             continue
 
-        if not db.has_link(raw_show.site_key, raw_show.show_key):
-            # Link doesn't doesn't exist in db
-            logger.debug(
-                "New show link: %s on %s", raw_show.show_key, raw_show.site_key
-            )
+        if db.has_link(raw_show.site_key, raw_show.show_key):
+            continue
 
-            # Check if related to existing show
-            shows = db.search_show_ids_by_names(raw_show.name, *raw_show.more_names)
-            show_id = None
-            if len(shows) == 0:
-                # Show doesn't exist; add it
-                logger.debug("  Show not found, adding to database")
-                if update_db:
-                    show_id = db.add_show(raw_show, commit=False)
-            elif len(shows) == 1:
-                show_id = shows.pop()
-            else:
-                # Uh oh, multiple matches
-                # TODO: make sure this isn't triggered by multi-season shows
-                logger.warning("  More than one show found, ids=%s", shows)
-                # show_id = shows[-1]
+        # Link doesn't doesn't exist in db
+        logger.debug("New show link: %s on %s", raw_show.show_key, raw_show.site_key)
 
-            # Add link to show
-            if show_id and update_db:
-                db.add_link(raw_show, show_id, commit=False)
+        # Check if related to existing show
+        shows = db.search_show_ids_by_names(raw_show.name, *raw_show.more_names)
+
+        if len(shows) > 1:
+            # Uh oh, multiple matches
+            # TODO: make sure this isn't triggered by multi-season shows
+            logger.warning("  More than one show found, ids=%s", shows)
+            # show_id = shows[-1]
+            continue
+
+        show_id = None
+        if not shows:
+            # Show doesn't exist; add it
+            logger.debug("  Show not found, adding to database")
+            if update_db:
+                show_id = db.add_show(raw_show, commit=False)
+        elif len(shows) == 1:
+            show_id = shows.pop()
+
+        # Add link to show
+        if show_id and update_db:
+            db.add_link(raw_show, show_id, commit=False)
 
         if update_db:
             db.commit()
 
 
-def _get_new_season_shows(config, db):
+def _get_new_season_shows(
+    config: Config, db: DatabaseDatabase
+) -> Generator[UnprocessedShow, None, None]:
     # Only checks link sites because their names are preferred
     # Names on stream sites are unpredictable and many times in english
     handlers = services.get_link_handlers()
@@ -158,6 +168,8 @@ def _get_new_season_shows(config, db):
             continue
 
         handler = handlers.get(site.key)
+        if not handler:
+            continue
         logger.info("  Checking %s (%s)", handler.name, handler.key)
         raw_shows = handler.get_seasonal_shows(useragent=config.useragent)
         for raw_show in raw_shows:
@@ -167,61 +179,70 @@ def _get_new_season_shows(config, db):
 # New streams
 
 
-def check_new_streams(config, db, update_db=True):
+def check_new_streams(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Checking for new streams")
     for raw_stream in _get_new_season_streams(config, db):
-        if not db.has_stream(raw_stream.service_key, raw_stream.show_key):
-            logger.debug("  %s", raw_stream.name)
-
-            # Search for a related show
-            shows = db.search_show_ids_by_names(raw_stream.name)
-            show_id = None
-            if len(shows) == 0:
-                logger.debug("    Show not found")
-            elif len(shows) == 1:
-                show_id = shows.pop()
-            else:
-                # Uh oh, multiple matches
-                # TODO: make sure this isn't triggered by multi-season shows
-                logger.warning("    More than one show found, ids=%s", shows)
-
-            # Add stream
-            if update_db:
-                db.add_stream(raw_stream, show_id, commit=False)
-        else:
+        if db.has_stream(raw_stream.service_key, raw_stream.show_key):
             logger.debug(
                 "  Stream already exists for %s on %s",
                 raw_stream.show_key,
                 raw_stream.service_key,
             )
+            continue
+
+        logger.debug("  %s", raw_stream.name)
+
+        # Search for a related show
+        shows = db.search_show_ids_by_names(raw_stream.name)
+        show_id = None
+        if len(shows) == 0:
+            logger.debug("    Show not found")
+        elif len(shows) == 1:
+            show_id = shows.pop()
+        else:
+            # Uh oh, multiple matches
+            # TODO: make sure this isn't triggered by multi-season shows
+            logger.warning("    More than one show found, ids=%s", shows)
+
+        # Add stream
+        if update_db:
+            db.add_stream(raw_stream, show_id, commit=False)
 
     if update_db:
         db.commit()
 
 
-def _get_new_season_streams(config, db):
+def _get_new_season_streams(
+    config: Config, db: DatabaseDatabase
+) -> Generator[UnprocessedStream, None, None]:
     handlers = services.get_service_handlers()
     for service in db.get_services():
         if service.key not in handlers:
             logger.warning("Service handler for %s not installed", service.key)
             continue
-
-        if service.enabled:
-            handler = handlers.get(service.key)
-            logger.info("  Checking %s (%s)", handler.name, handler.key)
-            raw_stream = handler.get_seasonal_streams(useragent=config.useragent)
-            for raw_stream in raw_stream:
-                yield raw_stream
+        if not service.enabled:
+            continue
+        handler = handlers.get(service.key)
+        if not handler:
+            continue
+        logger.info("  Checking %s (%s)", handler.name, handler.key)
+        raw_streams = handler.get_seasonal_streams(useragent=config.useragent)
+        for raw_stream in raw_streams:
+            yield raw_stream
 
 
 # Match streams missing shows
 
 
-def match_show_streams(config, db, update_db=True):
+def match_show_streams(
+    config: Config, db: DatabaseDatabase, update_db: bool = True
+) -> None:
     logger.info("Matching streams to shows")
     streams = db.get_streams(unmatched=True)
 
-    if len(streams) == 0:
+    if not streams:
         logger.debug("  No unmatched streams")
         return
 
@@ -229,34 +250,38 @@ def match_show_streams(config, db, update_db=True):
     for site in db.get_link_sites():
         logger.debug("  Checking service: %s", site.key)
         handler = services.get_link_handler(site)
+        if not handler:
+            continue
 
         # Check remaining streams
         for stream in list(streams):  # Iterate over copy of stream list allow removals
             logger.debug("    Checking stream: %s", stream.name)
             raw_shows = handler.find_show(stream.name, useragent=config.useragent)
-            if len(raw_shows) == 1:
-                # Show info found
-                raw_show = raw_shows.pop()
-                logger.debug("      Found show: %s", raw_show.name)
-
-                # Search stored names for show matches
-                shows = db.search_show_ids_by_names(raw_show.name, *raw_show.more_names)
-                if len(shows) == 1:
-                    # All the planets are aligned
-                    # Connect the stream and show and save the used name
-                    show_id = shows.pop()
-                    if update_db:
-                        db.update_stream(stream, show=show_id, active=True)
-                        db.add_show_names(stream.name, id=show_id, commit=False)
-                    streams.remove(stream)
-                elif len(shows) == 0:
-                    logger.warning("      No shows known")
-                else:
-                    logger.warning("      Multiple shows known")
-            elif len(raw_shows) == 0:
+            if not raw_shows:
                 logger.warning("    No shows found")
-            else:
+                continue
+
+            if len(raw_shows) > 1:
                 logger.warning("    Multiple shows found")
+                continue
+
+            # Show info found
+            raw_show = raw_shows.pop()
+            logger.debug("      Found show: %s", raw_show.name)
+
+            # Search stored names for show matches
+            shows = db.search_show_ids_by_names(raw_show.name, *raw_show.more_names)
+            if not shows:
+                logger.warning("      No shows known")
+            if len(shows) > 1:
+                logger.warning("      Multiple shows known")
+            # All the planets are aligned
+            # Connect the stream and show and save the used name
+            show_id = shows.pop()
+            if update_db:
+                db.update_stream(stream, show=show_id, active=True)
+                db.add_show_names(stream.name, id=show_id, commit=False)
+            streams.remove(stream)
 
         if update_db:
             db.commit()

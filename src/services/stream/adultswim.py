@@ -2,9 +2,9 @@ import logging
 import re
 from datetime import datetime, timedelta
 from typing import Any
-from bs4 import BeautifulSoup
 
 import dateutil.parser
+from bs4 import BeautifulSoup
 
 from data.models import Episode, Stream, UnprocessedStream
 
@@ -38,23 +38,16 @@ class ServiceHandler(AbstractServiceHandler):
                         self.name,
                         stream.show_key,
                     )
-
-        if len(episode_datas) > 0:
-            logger.debug(
-                "  %d episodes found, %d valid", len(episode_datas), len(episodes)
-            )
-        else:
-            logger.debug("  No episode found")
+        logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
     def _get_feed_episodes(self, show_key: str, **kwargs: Any):
         logger.info("Getting episodes for %s/%s", self.name, show_key)
-
         url = self._get_feed_url(show_key)
 
         # Send request
         response: BeautifulSoup | None = self.request(url, html=True, **kwargs)
-        if response is None:
+        if not response:
             logger.error("Cannot get show page for %s/%s", self.name, show_key)
             return []
 
@@ -66,8 +59,7 @@ class ServiceHandler(AbstractServiceHandler):
     def _get_feed_url(cls, show_key: str) -> str | None:
         if show_key:
             return cls._show_url.format(id=show_key)
-        else:
-            return None
+        return None
 
     # Remove info getting
 
@@ -76,7 +68,7 @@ class ServiceHandler(AbstractServiceHandler):
 
         url = self._get_feed_url(stream.show_key)
         response: BeautifulSoup | None = self.request(url, html=True, **kwargs)
-        if response is None:
+        if not response:
             logger.error("Cannot get feed")
             return None
 
@@ -91,8 +83,7 @@ class ServiceHandler(AbstractServiceHandler):
         return self._show_url.format(id=stream.show_key)
 
     def extract_show_key(self, url: str) -> str | None:
-        match = self._show_re.search(url)
-        if match:
+        if match := self._show_re.search(url):
             return match.group(1)
         return None
 
@@ -113,14 +104,14 @@ def _is_valid_episode(episode_data, show_key: str) -> bool:
     return True
 
 
-def _digest_episode(feed_episode):
+def _digest_episode(feed_episode) -> Episode:
     logger.debug("Digesting episode")
 
-    name = feed_episode.find("h4", itemprop="name", class_="episode__title").text
-    link = feed_episode.find("a", itemprop="url", class_="episode__link").href
-    num = int(feed_episode.find("meta", itemprop="episodeNumber")["content"])
+    name: str = feed_episode.find("h4", itemprop="name", class_="episode__title").text
+    link: str = feed_episode.find("a", itemprop="url", class_="episode__link").href
+    num: int = int(feed_episode.find("meta", itemprop="episodeNumber")["content"])
 
-    date_string = feed_episode.find("meta", itemprop="dateCreated")["content"]
+    date_string: str = feed_episode.find("meta", itemprop="dateCreated")["content"]
     date = datetime.fromordinal(dateutil.parser.parse(date_string).toordinal())
 
     return Episode(number=num, name=name, link=link, date=date)

@@ -1,7 +1,7 @@
 import logging
 
-from praw.models import Submission
 import praw
+from praw.models import Submission
 
 from config import Config
 
@@ -19,7 +19,7 @@ def init_reddit(config: Config) -> None:
 
 
 def _connect_reddit() -> praw.Reddit | None:
-    if _config is None:
+    if not _config:
         logger.error("Can't connect to reddit without a config")
         return None
 
@@ -33,11 +33,11 @@ def _connect_reddit() -> praw.Reddit | None:
     )
 
 
-def _ensure_connection():
+def _ensure_connection() -> bool:
     global _r
-    if _r is None:
+    if not _r:
         _r = _connect_reddit()
-    return _r is not None
+    return bool(_r)
 
 
 # Thing doing

@@ -31,7 +31,7 @@ def main(
             config, db, show, stream, int_episode, submit=not config.debug
         )
         logger.info("  Post URL: %s", post_url)
-        if post_url is not None:
+        if post_url:
             post_url = post_url.replace("http:", "https:")
             db.add_episode(show, int_episode.number, post_url)
         else:
@@ -53,14 +53,15 @@ def main(
         config, db, show, stream, episode_count
     )
 
-    if not config.debug:
-        megathread_post = reddit.submit_text_post(
+    megathread_post = (
+        None
+        if config.debug
+        else reddit.submit_text_post(
             config.subreddit, megathread_title, megathread_body
         )
-    else:
-        megathread_post = None
+    )
 
-    if megathread_post is not None:
+    if megathread_post:
         logger.debug("Post successful")
         megathread_url = reddit.get_shortlink_from_id(megathread_post.id).replace(
             "http:", "https:"
@@ -79,7 +80,7 @@ def main(
 def _create_megathread_content(
     config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode_count: int
 ) -> tuple[str, str]:
-    title = _create_megathread_title(config, show, episode_count)
+    title = _create_megathread_title(config, show)
     title = _format_post_text(
         config,
         db,
@@ -104,10 +105,7 @@ def _create_megathread_content(
     return title, body
 
 
-def _create_megathread_title(config, show, episode_count):
+def _create_megathread_title(config: Config, show: Show) -> str:
     if show.name_en:
-        title = config.batch_thread_post_title_with_en
-    else:
-        title = config.batch_thread_post_title
-
-    return title
+        return config.batch_thread_post_title_with_en
+    return config.batch_thread_post_title

@@ -59,12 +59,13 @@ class PollHandler(AbstractPollHandler):
             logger.error("Could not create poll (exception in POST): %s", e)
             return None
 
-        if resp.ok:
-            match = self._poll_id_re.search(resp.url)
-            return match.group(1)
-        else:
+        if not resp.ok:
             logger.error("Could not create poll (resp !OK)")
             return None
+        if match := self._poll_id_re.search(resp.url):
+            return match.group(1)
+        logger.warning("Could not create poll (ID not found)")
+        return None
 
     def get_link(self, poll: Poll) -> str:
         return self._poll_link.format(id=poll.id)
@@ -93,19 +94,18 @@ class PollHandler(AbstractPollHandler):
             if num_votes == 0:
                 logger.warning("No vote recorded, no score returned")
                 return None
-            values = dict()
+            values: dict[str, float] = {}
             for div in divs:
-                label = div.find("span", class_="basic-option-title").text
+                label: str = div.find("span", class_="basic-option-title").text
                 if label not in self.OPTIONS:
                     logger.error("Found unexpected label %s, aborted", label)
                     return None
-                value_text = div.find("span", class_="basic-option-percent").text
+                value_text: str = div.find("span", class_="basic-option-percent").text
                 score = float(value_text.strip("%")) / 100
                 values[label] = score
             results = [values[k] for k in self.OPTIONS]
             logger.info("Results: %s", results)
-            total = sum([r * s for r, s in zip(results, range(5, 0, -1))])
-            total = round(total, 2)
+            total = round(sum([r * (5 - i) for i, r in enumerate(results)]), 2)
             return total
         except Exception:
             logger.error(
@@ -113,10 +113,3 @@ class PollHandler(AbstractPollHandler):
                 self.get_results_link(poll),
             )
             return None
-
-    @staticmethod
-    def convert_score_str(score: float | None) -> str:
-        if score is None:
-            return "----"
-        else:
-            return str(score)

@@ -6,7 +6,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
-from data.models import EpisodeScore, Link, Show, UnprocessedShow
+from data.models import Link, Show, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -25,23 +25,19 @@ class InfoHandler(AbstractInfoHandler):
         self.rate_limit_wait = 2
 
     def get_link(self, link: Link | None) -> str | None:
-        if link is None:
+        if not link:
             return None
         return self._show_link_base.format(id=link.site_key)
 
     def extract_show_id(self, url: str) -> str | None:
-        if url:
-            match = re.match(self._show_link_matcher, url, re.I)
-            if match:
-                return match.group(1)
+        if match := re.match(self._show_link_matcher, url, re.I):
+            return match.group(1)
         return None
 
     def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
         return None
 
-    def get_show_score(
-        self, show: Show, link: Link, **kwargs: Any
-    ) -> EpisodeScore | None:
+    def get_show_score(self, show: Show, link: Link, **kwargs: Any) -> float | None:
         return None
 
     def get_seasonal_shows(
@@ -60,8 +56,8 @@ class InfoHandler(AbstractInfoHandler):
         # TODO
         return []
 
-    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
-        return list()
+    def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
+        return []
 
     def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
         return None

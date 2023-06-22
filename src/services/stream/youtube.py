@@ -31,29 +31,23 @@ class ServiceHandler(AbstractServiceHandler):
             if _is_valid_episode(episode_data, stream.show_key):
                 try:
                     episode = _digest_episode(episode_data)
-                    if episode is not None:
+                    if episode:
                         episodes.append(episode)
                 except Exception:
                     logger.exception(
                         "Problem digesting episode for Youtube/%s", stream.show_key
                     )
-
-        if len(episode_datas) > 0:
-            logger.debug(
-                "  %d episodes found, %d valid", len(episode_datas), len(episodes)
-            )
-        else:
-            logger.debug("  No episodes found")
+        logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
     def _get_feed_episodes(self, show_key: str, **kwargs: Any):
         url = self._get_feed_url(show_key)
-        if url is None:
+        if not url:
             logger.error("Cannot get feed url for %s/%s", self.name, show_key)
 
         # Request channel information
         response = self.request(url, json=True, **kwargs)
-        if response is None:
+        if not response:
             logger.error("Cannot get episode feed for %s/%s", self.name, show_key)
             return []
 
@@ -62,14 +56,14 @@ class ServiceHandler(AbstractServiceHandler):
             logger.warning(
                 "Parsed feed could not be verified, may have unexpected results"
             )
-        feed = response.get("items", list())
+        feed = response.get("items", [])
 
         video_ids = [item["contentDetails"]["videoId"] for item in feed]
         url = self._get_videos_url(video_ids)
 
         # Request videos information
         response = self.request(url, json=True, **kwargs)
-        if response is None:
+        if not response:
             logger.error("Cannot get video information for %s/%s", self.name, show_key)
             return []
 
@@ -82,25 +76,23 @@ class ServiceHandler(AbstractServiceHandler):
 
     def _get_feed_url(self, show_key: str) -> str | None:
         # Show key is the channel ID
-        if "api_key" not in self.config or not self.config["api_key"]:
+        api_key = self.config.get("api_key", "")
+        if not api_key:
             logger.error("  Missing API key for access to Youtube channel")
             return None
-        api_key = self.config["api_key"]
-        if show_key:
-            return self._playlist_api_query.format(id=show_key, key=api_key)
-        else:
+        if not show_key:
             return None
+        return self._playlist_api_query.format(id=show_key, key=api_key)
 
     def _get_videos_url(self, video_ids: Iterable[str]) -> str | None:
         # Videos ids is a list of all videos in feed
-        if "api_key" not in self.config or not self.config["api_key"]:
+        api_key = self.config.get("api_key", "")
+        if not api_key:
             logger.error("  Missing API key for access to Youtube channel")
             return None
-        api_key = self.config["api_key"]
-        if video_ids:
-            return self._videos_api_query.format(id=",".join(video_ids), key=api_key)
-        else:
+        if not video_ids:
             return None
+        return self._videos_api_query.format(id=",".join(video_ids), key=api_key)
 
     def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
         # Can't trust consistent stream naming, ignored
@@ -114,8 +106,7 @@ class ServiceHandler(AbstractServiceHandler):
         return self._channel_url.format(id=stream.show_key)
 
     def extract_show_key(self, url: str) -> str | None:
-        match = self._channel_re.search(url)
-        if match:
+        if match := self._channel_re.search(url):
             return match.group(1)
         return None
 
@@ -125,10 +116,10 @@ class ServiceHandler(AbstractServiceHandler):
 
 def _verify_feed(feed) -> bool:
     logger.debug("Verifying feed")
-    if not (
-        feed["kind"] == "youtube#playlistItemListResponse"
-        or feed["kind"] == "youtube#videoListResponse"
-    ):
+    if feed["kind"] not in {
+        "youtube#playlistItemListResponse",
+        "youtube#videoListResponse",
+    }:
         logger.debug("  Feed does not match request")
         return False
     if feed["pageInfo"]["totalResults"] > feed["pageInfo"]["resultsPerPage"]:
@@ -144,9 +135,9 @@ def _verify_feed(feed) -> bool:
 _excludors = [
     re.compile(x, re.I)
     for x in [
-        "(?:[^a-zA-Z]|^)(?:PV|OP|ED)(?:[^a-zA-Z]|$)",
-        "blu.?ray",
-        "preview",
+        r"(?:[^a-zA-Z]|^)(?:PV|OP|ED)(?:[^a-zA-Z]|$)",
+        r"blu.?ray",
+        r"preview",
     ]
 ]
 
@@ -167,14 +158,14 @@ def _is_valid_episode(feed_episode, show_id) -> bool:
     if feed_episode["snippet"]["liveBroadcastContent"] == "upcoming":
         logger.info("  Video was excluded (not yet online)")
         return False
-    title = feed_episode["snippet"]["localized"]["title"]
-    if len(title) == 0:
+    title: str = feed_episode["snippet"]["localized"]["title"]
+    if not title:
         logger.info("  Video was excluded (no title found)")
         return False
-    if any(ex.search(title) is not None for ex in _excludors):
+    if any(ex.search(title) for ex in _excludors):
         logger.info("  Video was excluded (excludors)")
         return False
-    if all(num.match(title) is None for num in _num_extractors):
+    if not any(num.match(title) for num in _num_extractors):
         logger.info("  Video was excluded (no episode number found)")
         return False
     return True
@@ -186,7 +177,7 @@ def _digest_episode(feed_episode) -> Episode | None:
 
     title = snippet["localized"]["title"]
     episode_num = _extract_episode_num(title)
-    if episode_num is None or not 0 < episode_num < 720:
+    if not episode_num or not 0 < episode_num < 720:
         return None
 
     date_string = snippet["publishedAt"].replace("Z", "")
@@ -199,11 +190,10 @@ def _digest_episode(feed_episode) -> Episode | None:
 
 def _extract_episode_num(name: str) -> int | None:
     logger.debug('Extracting episode number from "%s"', name)
-    if any(ex.search(name) is not None for ex in _excludors):
+    if any(ex.search(name) for ex in _excludors):
         return None
     for regex in _num_extractors:
-        match = regex.match(name)
-        if match is not None:
+        if match := regex.match(name):
             num = int(match.group(1))
             logger.debug("  Match found, num=%d", num)
             return num

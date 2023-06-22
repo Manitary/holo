@@ -1,8 +1,8 @@
 import copy
 import enum
 from datetime import datetime
-from typing import Self
 from time import struct_time
+from typing import Self
 
 
 class ShowType(enum.IntEnum):
@@ -13,15 +13,10 @@ class ShowType(enum.IntEnum):
 
 
 def str_to_showtype(string: str) -> ShowType:
-    if string is not None:
-        string = string.lower()
-        if string == "tv":
-            return ShowType.TV
-        if string == "movie":
-            return ShowType.MOVIE
-        if string == "ova":
-            return ShowType.OVA
-    return ShowType.UNKNOWN
+    try:
+        return ShowType[string.strip().lower()]
+    except KeyError:
+        return ShowType.UNKNOWN
 
 
 class DbEqMixin:

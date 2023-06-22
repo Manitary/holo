@@ -1,14 +1,13 @@
 # Export all valid modules from the package
-import glob
-import os
+from pathlib import Path
 
-module_dir = os.path.dirname(__file__)
-modules = glob.glob(module_dir + "/*.py")
+module_dir = Path(__file__).parent.resolve()
 __all__ = [
-    os.path.basename(f)[:-3]
-    for f in modules
-    if os.path.isfile(f) and not os.path.basename(f).startswith("_")
+    f.stem
+    for f in module_dir.iterdir()
+    if f.suffix == ".py" and not f.stem.startswith("__")
 ]
-del os
+
+del Path
 
 from . import *

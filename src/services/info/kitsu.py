@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Any
 
-from data.models import EpisodeScore, Link, Show, UnprocessedShow
+from data.models import Link, Show, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -22,15 +22,13 @@ class InfoHandler(AbstractInfoHandler):
         super().__init__("kitsu", "Kitsu")
 
     def get_link(self, link: Link | None) -> str | None:
-        if link is None:
+        if not link:
             return None
         return self._show_link_base.format(slug=link.site_key)
 
     def extract_show_id(self, url: str) -> str | None:
-        if url:
-            match = re.match(self._show_link_matcher, url, re.I)
-            if match:
-                return match.group(1)
+        if match := re.match(self._show_link_matcher, url, re.I):
+            return match.group(1)
         return None
 
     def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
@@ -39,34 +37,32 @@ class InfoHandler(AbstractInfoHandler):
         # Request show data from Kitsu
         # url = self._api_base + "?filter[slug]=" + link.site_key + "&fields[anime]=episodeCount"
         # response = self._site_request(url, **kwargs)
-        # if response is None:
+        # if not response:
         # 	logger.error("Cannot get show data")
         # 	return None
 
         # Parse show data
         # count = response["data"][0]["attributes"]["episodeCount"]
-        # if count is None:
+        # if not count:
         # 	logger.warning("  Count not found")
         # 	return None
 
         # return count
         return None
 
-    def get_show_score(
-        self, show: Show, link: Link, **kwargs: Any
-    ) -> EpisodeScore | None:
+    def get_show_score(self, show: Show, link: Link, **kwargs: Any) -> float | None:
         # logger.debug("Getting show score")
 
         # Request show data
         # url = self._api_base + "?filter[slug]=" + link.site_key + "&fields[anime]=averageRating"
         # response = self._site_request(url, **kwargs)
-        # if response is None:
+        # if not response:
         # 	logger.error("Cannot get show data")
         # 	return None
 
         # Find score
         # score = response["data"][0]["attributes"]["averageRating"]
-        # if score is None:
+        # if not score:
         # 	logger.warning("  Score not found")
         # 	return None
 
@@ -81,22 +77,22 @@ class InfoHandler(AbstractInfoHandler):
         # Request season data from Kitsu
         # url = self._season_url.format(year=year, season=season)
         # response = self._site_request(url, **kwargs)
-        # if response is None:
+        # if not response:
         # 	logger.error("Cannot get show list")
-        # 	return list()
+        # 	return []
 
         # Parse data
         # TODO
         return []
 
-    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
+    def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
         # url = self._api_base + "?filter[text]=" + show_name
         # result = self._site_request(url, **kwargs)
-        # if result is None:
+        # if not result:
         # 	logger.error("Failed to find show")
-        # 	return list()
+        # 	return []
 
-        # shows = list()
+        # shows: list[Show] = []
         # TODO
 
         # return shows
@@ -108,13 +104,13 @@ class InfoHandler(AbstractInfoHandler):
         # Request show data from Kitsu
         # url = self._api_base + "?filter[slug]=" + show_id + "&fields[anime]=titles,abbreviatedTitles"
         # response = self._site_request(url, **kwargs)
-        # if response is None:
+        # if not response:
         # 	logger.error("Cannot get show data")
         # 	return None
 
         # Parse show data
         # name_english = response["data"][0]["attributes"]["titles"]["en"]
-        # if name_english is None:
+        # if not name_english:
         # 	logger.warning("  English name was not found")
         # 	return None
 

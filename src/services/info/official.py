@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from data.models import EpisodeScore, Link, Show, UnprocessedShow
+from data.models import Link, Show, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -15,14 +15,14 @@ class InfoHandler(AbstractInfoHandler):
         super().__init__("official", "Official Website")
 
     def get_link(self, link: Link | None) -> str | None:
-        if link is None:
+        if not link:
             return None
         return link.site_key
 
     def extract_show_id(self, url: str) -> str:
         return url
 
-    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
+    def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
         return []
 
     def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
@@ -31,9 +31,7 @@ class InfoHandler(AbstractInfoHandler):
     def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
         return None
 
-    def get_show_score(
-        self, show: Show, link: Link, **kwargs: Any
-    ) -> EpisodeScore | None:
+    def get_show_score(self, show: Show, link: Link, **kwargs: Any) -> float | None:
         return None
 
     def get_seasonal_shows(

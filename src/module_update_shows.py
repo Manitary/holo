@@ -40,22 +40,23 @@ def _check_show_lengths(
             # Get show link to site represented by the handler
             site = db.get_link_site(key=handler.key)
             link = db.get_link(show, site)
-            if link is None:
+            if not link:
                 logger.error("Failed to create link")
                 continue
 
             # Validate length
             new_length = handler.get_episode_count(link, useragent=config.useragent)
-            if new_length is not None:
-                logger.debug("    Lists length: %s", new_length)
-                if length is not None and new_length != length:
-                    logger.warning(
-                        "    Conflict between lengths %s and %s", new_length, length
-                    )
-                length = new_length
+            if not new_length:
+                continue
+            logger.debug("    Lists length: %s", new_length)
+            if length and new_length != length:
+                logger.warning(
+                    "    Conflict between lengths %s and %s", new_length, length
+                )
+            length = new_length
 
         # Length found, update database
-        if length is not None:
+        if length:
             logger.info("New episode count: %s", length)
             if update_db:
                 db.set_show_episode_count(show, length)
@@ -71,7 +72,7 @@ def _disable_finished_shows(
     shows = db.get_shows()
     for show in shows:
         latest_episode = db.get_latest_episode(show)
-        if latest_episode is not None and 0 < show.length <= latest_episode.number:
+        if latest_episode and 0 < show.length <= latest_episode.number:
             logger.info('  Disabling show "%s"', show.name)
             if latest_episode.number > show.length:
                 logger.warning(
@@ -93,6 +94,8 @@ def _check_missing_stream_info(
     streams = db.get_streams(missing_name=True)
     for stream in streams:
         service_info = db.get_service(id=stream.service)
+        if not service_info:
+            continue
         logger.info(
             "Updating missing stream info of %s (%s/%s)",
             stream.name,
@@ -101,6 +104,8 @@ def _check_missing_stream_info(
         )
 
         service = services.get_service_handler(key=service_info.key)
+        if not service:
+            continue
         stream = service.get_stream_info(stream, useragent=config.useragent)
         if not stream:
             logger.error("  Stream info not found")
@@ -130,40 +135,40 @@ def _check_new_episode_scores(
     shows = db.get_shows(enabled=True)
     for show in shows:
         latest_episode = db.get_latest_episode(show)
-        if latest_episode is not None:
-            logger.info(
-                "For show %s (%s), episode %d",
-                show.name,
-                show.id,
-                latest_episode.number,
-            )
+        if not latest_episode:
+            continue
+        logger.info(
+            "For show %s (%s), episode %d",
+            show.name,
+            show.id,
+            latest_episode.number,
+        )
 
-            scores = db.get_episode_scores(show, latest_episode)
-            # Check if any scores have been found rather than checking for each service
-            if len(scores) == 0:
-                for handler in services.get_link_handlers().values():
-                    logger.info("  Checking %s (%s)", handler.name, handler.key)
+        scores = db.get_episode_scores(show, latest_episode)
+        # Check if any scores have been found rather than checking for each service
+        if scores:
+            logger.info("  Already has scores, ignoring")
+            continue
 
-                    # Get show link to site represented by the handler
-                    site = db.get_link_site(key=handler.key)
-                    link = db.get_link(show, site)
-                    if link is None:
-                        logger.error("Failed to create link")
-                        continue
+        for handler in services.get_link_handlers().values():
+            logger.info("  Checking %s (%s)", handler.name, handler.key)
 
-                    new_score = handler.get_show_score(
-                        show, link, useragent=config.useragent
-                    )
-                    if new_score is not None:
-                        logger.info("    Score: %f", new_score)
-                        db.add_episode_score(
-                            show, latest_episode, site, new_score, commit=False
-                        )
+            # Get show link to site represented by the handler
+            site = db.get_link_site(key=handler.key)
+            link = db.get_link(show, site)
+            if not link:
+                logger.error("Failed to create link")
+                continue
 
-                if update_db:
-                    db.commit()
-            else:
-                logger.info("  Already has scores, ignoring")
+            new_score = handler.get_show_score(show, link, useragent=config.useragent)
+            if new_score:
+                logger.info("    Score: %f", new_score)
+                db.add_episode_score(
+                    show, latest_episode, site, new_score, commit=False
+                )
+
+        if update_db:
+            db.commit()
 
 
 def _record_poll_scores(

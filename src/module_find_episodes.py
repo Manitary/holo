@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def main(config: Config, db: DatabaseDatabase) -> None:
     reddit.init_reddit(config)
 
-    has_new_episode = []
+    has_new_episode: list[Show] = []
 
     # Check services for new episodes
     enabled_services = db.get_services(enabled=True)
@@ -21,6 +21,8 @@ def main(config: Config, db: DatabaseDatabase) -> None:
     for service in enabled_services:
         try:
             service_handler = services.get_service_handler(service)
+            if not service_handler:
+                continue
 
             streams = db.get_streams(service=service)
             logger.debug("%d streams found", len(streams))
@@ -36,7 +38,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
 
             for stream, episodes in recent_episodes.items():
                 show = db.get_show(stream=stream)
-                if show is None or not show.enabled:
+                if not show or not show.enabled:
                     continue
 
                 logger.info('Checking stream "%s"', stream.show_key)
@@ -66,32 +68,33 @@ def main(config: Config, db: DatabaseDatabase) -> None:
     for service in enabled_services:
         try:
             service_handler = services.get_service_handler(service)
-            if service_handler.is_generic:
-                logger.debug("    Checking service %s", service_handler.name)
-                recent_episodes = service_handler.get_recent_episodes(
-                    other_streams, useragent=config.useragent
-                )
-                logger.info(
-                    "%d episodes for active shows on generic service %s",
-                    len(recent_episodes),
-                    service,
-                )
+            if not service_handler or not service_handler.is_generic:
+                continue
+            logger.debug("    Checking service %s", service_handler.name)
+            recent_episodes = service_handler.get_recent_episodes(
+                other_streams, useragent=config.useragent
+            )
+            logger.info(
+                "%d episodes for active shows on generic service %s",
+                len(recent_episodes),
+                service,
+            )
 
-                for stream, episodes in recent_episodes.items():
-                    show = db.get_show(stream=stream)
-                    if show is None or not show.enabled:
-                        continue
+            for stream, episodes in recent_episodes.items():
+                show = db.get_show(stream=stream)
+                if not show or not show.enabled:
+                    continue
 
-                    logger.info('Checking stream "%s"', stream.show_key)
-                    logger.debug(stream)
+                logger.info('Checking stream "%s"', stream.show_key)
+                logger.debug(stream)
 
-                    if not episodes:
-                        logger.info("  No episode found")
-                        continue
+                if not episodes:
+                    logger.info("  No episode found")
+                    continue
 
-                    for episode in sorted(episodes, key=lambda e: e.number):
-                        if _process_new_episode(config, db, show, stream, episode):
-                            has_new_episode.append(show)
+                for episode in sorted(episodes, key=lambda e: e.number):
+                    if _process_new_episode(config, db, show, stream, episode):
+                        has_new_episode.append(show)
         except IOError:
             logger.error("Error while getting shows on service %s", service)
 
@@ -110,77 +113,77 @@ def _process_new_episode(
 ) -> bool:
     logger.debug("Processing new episode")
     logger.debug("%s", episode)
-
     logger.debug("  Date: %s", episode.date)
     logger.debug("  Is live: %s", episode.is_live)
     # if episode.is_live and (episode.date is None or episode.date.date() > yesterday):
-    if episode.is_live:
-        # Adjust episode to internal numbering
-        int_episode = stream.to_internal_episode(episode)
-        logger.debug("  Adjusted num: %d", int_episode.number)
-        if int_episode.number <= 0:
-            logger.error("Episode number must be positive")
-            return False
-
-        # Check if already in database
-        # already_seen = db.stream_has_episode(stream, episode.number)
-        latest_episode = db.get_latest_episode(show)
-        already_seen = (
-            latest_episode is not None and latest_episode.number >= int_episode.number
-        )
-        episode_number_gap = (
-            latest_episode is not None
-            and latest_episode.number > 0
-            and int_episode.number > latest_episode.number + 1
-        )
-        logger.debug(
-            "  Latest ep num: %s",
-            "none" if latest_episode is None else latest_episode.number,
-        )
-        logger.debug("  Already seen: %s", already_seen)
-        logger.debug("  Gap between episodes: %d", episode_number_gap)
-
-        logger.info(
-            "  Posted on %s, number %d, %s, %s",
-            episode.date,
-            int_episode.number,
-            "already seen" if already_seen else "new",
-            "gap between episodes" if episode_number_gap else "expected number",
-        )
-        # New episode!
-        if not already_seen and not episode_number_gap:
-            post_url = _create_reddit_post(
-                config, db, show, stream, int_episode, submit=not config.debug
-            )
-            logger.info("  Post URL: %s", post_url)
-            if post_url is not None:
-                post_url = post_url.replace("http:", "https:")
-                db.add_episode(stream.show, int_episode.number, post_url)
-                if show.delayed:
-                    db.set_show_delayed(show, False)
-                # Edit the links in previous episodes
-                editing_episodes = db.get_episodes(show)
-                if len(editing_episodes) > 0:
-                    edit_history_length = int(4 * 13 / 2)  # cols x rows / 2
-                    editing_episodes.sort(key=lambda x: x.number)
-                    for editing_episode in editing_episodes[-edit_history_length:]:
-                        _edit_reddit_post(
-                            config,
-                            db,
-                            show,
-                            stream,
-                            editing_episode,
-                            editing_episode.link,
-                            submit=not config.debug,
-                        )
-            else:
-                logger.error("  Episode not submitted")
-
-            return True
-    else:
+    if not episode.is_live:
         logger.info("  Episode not live")
+        return False
 
-    return False
+    # Adjust episode to internal numbering
+    int_episode = stream.to_internal_episode(episode)
+    logger.debug("  Adjusted num: %d", int_episode.number)
+    if int_episode.number <= 0:
+        logger.error("Episode number must be positive")
+        return False
+
+    # Check if already in database
+    # already_seen = db.stream_has_episode(stream, episode.number)
+    latest_episode = db.get_latest_episode(show)
+    already_seen = (
+        latest_episode is not None and latest_episode.number >= int_episode.number
+    )
+    episode_number_gap = (
+        latest_episode is not None
+        and latest_episode.number > 0
+        and int_episode.number > latest_episode.number + 1
+    )
+    logger.debug(
+        "  Latest ep num: %s",
+        "none" if latest_episode is None else latest_episode.number,
+    )
+    logger.debug("  Already seen: %s", already_seen)
+    logger.debug("  Gap between episodes: %d", episode_number_gap)
+
+    logger.info(
+        "  Posted on %s, number %d, %s, %s",
+        episode.date,
+        int_episode.number,
+        "already seen" if already_seen else "new",
+        "gap between episodes" if episode_number_gap else "expected number",
+    )
+    # New episode!
+    if already_seen or episode_number_gap:
+        return False
+    post_url = _create_reddit_post(
+        config, db, show, stream, int_episode, submit=not config.debug
+    )
+    logger.info("  Post URL: %s", post_url)
+    if not post_url:
+        logger.error("  Episode not submitted")
+        return True
+
+    post_url = post_url.replace("http:", "https:")
+    db.add_episode(stream.show, int_episode.number, post_url)
+    if show.delayed:
+        db.set_show_delayed(show, False)
+    # Edit the links in previous episodes
+    editing_episodes = db.get_episodes(show)
+    if not editing_episodes:
+        return True
+    edit_history_length = int(4 * 13 / 2)  # cols x rows / 2
+    editing_episodes.sort(key=lambda x: x.number)
+    for editing_episode in editing_episodes[-edit_history_length:]:
+        _edit_reddit_post(
+            config,
+            db,
+            show,
+            stream,
+            editing_episode,
+            editing_episode.link,
+            submit=not config.debug,
+        )
+    return True
 
 
 def _create_reddit_post(
@@ -194,14 +197,14 @@ def _create_reddit_post(
     display_episode = stream.to_display_episode(episode)
 
     title, body = _create_post_contents(config, db, show, stream, display_episode)
-    if submit:
-        new_post = reddit.submit_text_post(config.subreddit, title, body)
-        if new_post is not None:
-            logger.debug("Post successful")
-            return reddit.get_shortlink_from_id(new_post.id)
-        else:
-            logger.error("Failed to submit post")
-    return None
+    if not submit:
+        return None
+    new_post = reddit.submit_text_post(config.subreddit, title, body)
+    if not new_post:
+        logger.error("Failed to submit post")
+        return None
+    logger.debug("Post successful")
+    return reddit.get_shortlink_from_id(new_post.id)
 
 
 def _edit_reddit_post(
@@ -220,7 +223,6 @@ def _edit_reddit_post(
     )
     if submit:
         reddit.edit_text_post(url, body)
-    return None
 
 
 def _create_post_contents(
@@ -317,16 +319,20 @@ def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show)
 
     streams = db.get_streams(show=show)
     for stream in streams:
-        if stream.active:
-            service = db.get_service(id=stream.service)
-            if service.enabled and service.use_in_post:
-                service_handler = services.get_service_handler(service)
-                text = safe_format(
-                    formats["stream"],
-                    service_name=service.name,
-                    stream_link=service_handler.get_stream_link(stream),
-                )
-                stream_texts.append(text)
+        if not stream.active:
+            continue
+        service = db.get_service(id=stream.service)
+        if not (service and service.enabled and service.use_in_post):
+            continue
+        service_handler = services.get_service_handler(service)
+        if not service_handler:
+            continue
+        text = safe_format(
+            formats["stream"],
+            service_name=service.name,
+            stream_link=service_handler.get_stream_link(stream),
+        )
+        stream_texts.append(text)
 
     lite_streams = db.get_lite_streams(show=show)
     for lite_stream in lite_streams:
@@ -337,10 +343,10 @@ def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show)
         )
         stream_texts.append(text)
 
-    if len(stream_texts) > 0:
+    if stream_texts:
         return "\n".join(stream_texts)
-    else:
-        return "*None*"
+
+    return "*None*"
 
 
 def _gen_text_links(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
@@ -352,24 +358,29 @@ def _gen_text_links(db: DatabaseDatabase, formats: dict[str, str], show: Show) -
     ] = []  # for links that come last, e.g. official and subreddit
     for link in links:
         site = db.get_link_site(id=link.site)
-        if site.enabled:
-            link_handler = services.get_link_handler(site)
-            if site.key == "subreddit":
-                text = safe_format(
-                    formats["link_reddit"], link=link_handler.get_link(link)
-                )
-            else:
-                text = safe_format(
-                    formats["link"],
-                    site_name=site.name,
-                    link=link_handler.get_link(link),
-                )
-            if site.key == "subreddit" or site.key == "official":
-                link_texts_bottom.append(text)
-            else:
-                link_texts.append(text)
+        if not (site and site.enabled):
+            continue
+        link_handler = services.get_link_handler(site)
+        if not link_handler:
+            continue
+        if site.key == "subreddit":
+            text = safe_format(formats["link_reddit"], link=link_handler.get_link(link))
+        else:
+            text = safe_format(
+                formats["link"],
+                site_name=site.name,
+                link=link_handler.get_link(link),
+            )
+        if site.key in {"subreddit", "official"}:
+            link_texts_bottom.append(text)
+        else:
+            link_texts.append(text)
 
     return "\n".join(link_texts) + "\n" + "\n".join(link_texts_bottom)
+
+
+_NUM_LINES = 13
+_MAX_COLS = 4
 
 
 def _gen_text_discussions(
@@ -377,56 +388,55 @@ def _gen_text_discussions(
 ) -> str:
     episodes = db.get_episodes(show)
     logger.debug("Num previous episodes: %d", len(episodes))
-    N_LINES = 13
-    n_episodes = 4 * N_LINES  # maximum 4 columns
+    n_episodes = _MAX_COLS * _NUM_LINES
     if len(episodes) > n_episodes:
         logger.debug("Clipping to most recent %d episodes", n_episodes)
         episodes = episodes[-n_episodes:]
-    if len(episodes) > 0:
-        table = []
-        for episode in episodes:
-            episode = stream.to_display_episode(episode)
-            poll_handler = services.get_default_poll_handler()
-            poll = db.get_poll(show, episode)
-            if poll is None:
-                score = None
-                poll_link = None
-            elif poll.has_score:
-                score = poll.score
-                poll_link = poll_handler.get_results_link(poll)
-            else:
-                score = poll_handler.get_score(poll)
-                poll_link = poll_handler.get_results_link(poll)
-            score = poll_handler.convert_score_str(score)
-            table.append(
-                safe_format(
-                    formats["discussion"],
-                    episode=episode.number,
-                    link=episode.link,
-                    score=score,
-                    poll_link=poll_link if poll_link else "http://localhost",
-                )
-            )  # Need valid link even when empty
-
-        num_columns = 1 + (len(table) - 1) // N_LINES
-        format_head, format_align = (
-            formats["discussion_header"],
-            formats["discussion_align"],
-        )
-        table_head = (
-            "|".join(num_columns * [format_head])
-            + "\n"
-            + "|".join(num_columns * [format_align])
-        )
-        table = ["|".join(table[i::N_LINES]) for i in range(N_LINES)]
-        return table_head + "\n" + "\n".join(table)
-    else:
+    if not episodes:
         return formats["discussion_none"]
+
+    table: list[str] = []
+    for episode in episodes:
+        episode = stream.to_display_episode(episode)
+        poll_handler = services.get_default_poll_handler()
+        poll = db.get_poll(show, episode)
+        if not poll:
+            score = None
+            poll_link = None
+        elif poll.has_score:
+            score = poll.score
+            poll_link = poll_handler.get_results_link(poll)
+        else:
+            score = poll_handler.get_score(poll)
+            poll_link = poll_handler.get_results_link(poll)
+        score = poll_handler.convert_score_str(score)
+        table.append(
+            safe_format(
+                formats["discussion"],
+                episode=episode.number,
+                link=episode.link,
+                score=score,
+                poll_link=poll_link if poll_link else "http://localhost",
+            )
+        )  # Need valid link even when empty
+
+    num_columns = 1 + (len(table) - 1) // _NUM_LINES
+    format_head, format_align = (
+        formats["discussion_header"],
+        formats["discussion_align"],
+    )
+    table_head = (
+        "|".join(num_columns * [format_head])
+        + "\n"
+        + "|".join(num_columns * [format_align])
+    )
+    table = ["|".join(table[i::_NUM_LINES]) for i in range(_NUM_LINES)]
+    return table_head + "\n" + "\n".join(table)
 
 
 def _gen_text_aliases(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
     aliases = db.get_aliases(show)
-    if len(aliases) == 0:
+    if not aliases:
         return ""
     return safe_format(formats["aliases"], aliases=", ".join(aliases))
 
@@ -442,23 +452,24 @@ def _gen_text_poll(
     title = config.post_poll_title.format(show=show.name, episode=episode.number)
 
     poll = db.get_poll(show, episode)
-    if poll is None:
+    if not poll:
         poll_id = handler.create_poll(
             title, headers={"User-Agent": config.useragent}, submit=not config.debug
         )
-        if poll_id:
-            site = db.get_poll_site(key=handler.key)
-            db.add_poll(show, episode, site, poll_id)
-            poll = db.get_poll(show, episode)
+        if not poll_id:
+            return ""
+        site = db.get_poll_site(key=handler.key)
+        db.add_poll(show, episode, site, poll_id)
+        poll = db.get_poll(show, episode)
 
-    if poll is not None:
-        poll_url = handler.get_link(poll)
-        poll_results_url = handler.get_results_link(poll)
-        return safe_format(
-            formats["poll"], poll_url=poll_url, poll_results_url=poll_results_url
-        )
-    else:
+    if not poll:
         return ""
+
+    poll_url = handler.get_link(poll)
+    poll_results_url = handler.get_results_link(poll)
+    return safe_format(
+        formats["poll"], poll_url=poll_url, poll_results_url=poll_results_url
+    )
 
 
 # Helpers

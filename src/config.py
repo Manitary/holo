@@ -21,7 +21,7 @@ class Config:
         self.useragent: str | None = None
         self.ratelimit: float = 1.0
 
-        self.subreddit: str | None = None
+        self.subreddit: str = ""
         self.r_username: str | None = None
         self.r_password: str | None = None
         self.r_oauth_key: str | None = None
@@ -43,8 +43,8 @@ class Config:
         self.post_flair_text: str | None = None
         self.post_body: str = ""
         self.post_poll_title: str = ""
-        self.batch_thread_post_title: str | None = None
-        self.batch_thread_post_title_with_en: str | None = None
+        self.batch_thread_post_title: str = ""
+        self.batch_thread_post_title_with_en: str = ""
         self.batch_thread_post_body: str | None = None
         self.post_formats: dict[str, str] = {}
 
@@ -55,7 +55,7 @@ def from_file(file_path: str) -> Config | None:
 
     parsed = WhitespaceFriendlyConfigParser()
     success = parsed.read(file_path, encoding="utf-8")
-    if len(success) == 0:
+    if not success:
         print("Failed to load config file")
         return None
 
@@ -72,7 +72,7 @@ def from_file(file_path: str) -> Config | None:
 
     if "reddit" in parsed:
         sec = parsed["reddit"]
-        config.subreddit = sec.get("subreddit", None)
+        config.subreddit = sec.get("subreddit", "")
         config.r_username = sec.get("username", None)
         config.r_password = sec.get("password", None)
         config.r_oauth_key = sec.get("oauth_key", None)
@@ -105,9 +105,9 @@ def from_file(file_path: str) -> Config | None:
         config.post_flair_text = sec.get("flair_text", None)
         config.post_body = sec.get("body", "")
         config.post_poll_title = sec.get("poll_title", "")
-        config.batch_thread_post_title = sec.get("batch_thread_title", None)
+        config.batch_thread_post_title = sec.get("batch_thread_title", "")
         config.batch_thread_post_title_with_en = sec.get(
-            "batch_thread_title_with_en", None
+            "batch_thread_title_with_en", ""
         )
         config.batch_thread_post_body = sec.get("batch_thread_body", None)
         for key in sec:
@@ -117,35 +117,31 @@ def from_file(file_path: str) -> Config | None:
     # Services
     for key in parsed:
         if key.startswith("service."):
-            service = key[8:]
-            config.services[service] = dict(parsed[key])
+            config.services[key[8:]] = dict(parsed[key])
 
     return config
 
 
 def validate(config: Config) -> str | bool:
-    def is_bad_str(s: str | None) -> bool:
-        return s is None or len(s) == 0
-
-    if is_bad_str(config.database):
+    if not config.database:
         return "database missing"
-    if is_bad_str(config.useragent):
+    if not config.useragent:
         return "useragent missing"
     if config.ratelimit < 0:
         logger.warning("Rate limit can't be negative, defaulting to 1.0")
         config.ratelimit = 1.0
-    if is_bad_str(config.subreddit):
+    if not config.subreddit:
         return "subreddit missing"
-    if is_bad_str(config.r_username):
+    if not config.r_username:
         return "reddit username missing"
-    if is_bad_str(config.r_password):
+    if not config.r_password:
         return "reddit password missing"
-    if is_bad_str(config.r_oauth_key):
+    if not config.r_oauth_key:
         return "reddit oauth key missing"
-    if is_bad_str(config.r_oauth_secret):
+    if not config.r_oauth_secret:
         return "reddit oauth secret missing"
-    if is_bad_str(config.post_title):
+    if not config.post_title:
         return "post title missing"
-    if is_bad_str(config.post_body):
+    if not config.post_body:
         return "post title missing"
     return False

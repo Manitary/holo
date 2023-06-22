@@ -37,12 +37,12 @@ EMPTY_LIST_STREAM: list[Stream] = []
 EMPTY_LIST_LITESTREAM: list[LiteStream] = []
 EMPTY_LIST_LINK: list[Link] = []
 EMPTY_LIST_LINKSITE: list[LinkSite] = []
-EMPTY_LIST_SHOW: list[Link] = []
+EMPTY_LIST_SHOW: list[Show] = []
 EMPTY_LIST_STRING: list[str] = []
 EMPTY_LIST_EPISODE: list[Episode] = []
 EMPTY_LIST_EPISODESCORE: list[EpisodeScore] = []
 EMPTY_LIST_POLL: list[Poll] = []
-EMPTY_SET_SHOW: set[Show] = set()
+EMPTY_SET_INT: set[int] = set()
 
 
 def living_in(the_database: str) -> DatabaseDatabase | None:
@@ -491,27 +491,27 @@ class DatabaseDatabase:
         commit: bool = True,
     ) -> None:
         logger.debug("Updating stream: id=%s", stream.id)
-        if show is not None:
+        if show:
             self.q.execute(
                 "UPDATE Streams SET show = ? WHERE id = ?", (show, stream.id)
             )
-        if active is not None:
+        if active:
             self.q.execute(
                 "UPDATE Streams SET active = ? WHERE id = ?", (active, stream.id)
             )
-        if name is not None:
+        if name:
             self.q.execute(
                 "UPDATE Streams SET name = ? WHERE id = ?", (name, stream.id)
             )
-        if show_id is not None:
+        if show_id:
             self.q.execute(
                 "UPDATE Streams SET show_id = ? WHERE id = ?", (show_id, stream.id)
             )
-        if show_key is not None:
+        if show_key:
             self.q.execute(
                 "UPDATE Streams SET show_key = ? WHERE id = ?", (show_key, stream.id)
             )
-        if remote_offset is not None:
+        if remote_offset:
             self.q.execute(
                 "UPDATE Streams SET remote_offset = ? WHERE id = ?",
                 (remote_offset, stream.id),
@@ -528,14 +528,14 @@ class DatabaseDatabase:
         show: Show | None = None,
         missing_link: bool = False,
     ) -> list[LiteStream]:
-        if service is not None:
+        if service:
             logger.debug("Getting all lite streams for service key %s", service)
             self.q.execute(
                 "SELECT show, service, service_name, url FROM LiteStreams \
 							WHERE service = ?",
                 (service,),
             )
-        elif show is not None:
+        elif show:
             logger.debug("Getting all lite streams for show %s", show)
             self.q.execute(
                 "SELECT show, service, service_name, url FROM LiteStreams \
@@ -552,8 +552,7 @@ class DatabaseDatabase:
             logger.error("A service or show must be provided to get lite streams")
             return []
 
-        lite_streams = self.q.fetchall()
-        lite_streams = [LiteStream(**lite_stream) for lite_stream in lite_streams]
+        lite_streams = [LiteStream(**lite_stream) for lite_stream in self.q.fetchall()]
         return lite_streams
 
     @db_error
@@ -572,11 +571,11 @@ class DatabaseDatabase:
     def get_link_site(
         self, id: str | None = None, key: str | None = None
     ) -> LinkSite | None:
-        if id is not None:
+        if id:
             self.q.execute(
                 "SELECT id, key, name, enabled FROM LinkSites WHERE id = ?", (id,)
             )
-        elif key is not None:
+        elif key:
             self.q.execute(
                 "SELECT id, key, name, enabled FROM LinkSites WHERE key = ?", (key,)
             )
@@ -584,24 +583,17 @@ class DatabaseDatabase:
             logger.error("ID or key required to get link site")
             return None
         site = self.q.fetchone()
-        if site is None:
+        if not site:
             return None
         return LinkSite(**site)
 
     @db_error_default(EMPTY_LIST_LINKSITE)
-    def get_link_sites(
-        self, enabled: bool = True, disabled: bool = False
-    ) -> list[LinkSite]:
+    def get_link_sites(self, enabled: bool = True) -> list[LinkSite]:
         sites: list[LinkSite] = []
         if enabled:
             self.q.execute(
-                "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = 1"
-            )
-            for link in self.q.fetchall():
-                sites.append(LinkSite(**link))
-        if disabled:
-            self.q.execute(
-                "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = 0"
+                "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = ?",
+                (1 if enabled else 0,),
             )
             for link in self.q.fetchall():
                 sites.append(LinkSite(**link))
@@ -609,19 +601,18 @@ class DatabaseDatabase:
 
     @db_error_default(EMPTY_LIST_LINK)
     def get_links(self, show: Show | None = None) -> list[Link]:
-        if show is not None:
-            logger.debug("Getting all links for show %s", show.id)
-
-            # Get all streams with show ID
-            self.q.execute(
-                "SELECT site, show, site_key FROM Links WHERE show = ?", (show.id,)
-            )
-            links = self.q.fetchall()
-            links = [Link(**link) for link in links]
-            return links
-        else:
+        if not show:
             logger.error("A show must be provided to get links")
             return []
+        logger.debug("Getting all links for show %s", show.id)
+
+        # Get all streams with show ID
+        self.q.execute(
+            "SELECT site, show, site_key FROM Links WHERE show = ?", (show.id,)
+        )
+        links = self.q.fetchall()
+        links = [Link(**link) for link in links]
+        return links
 
     @db_error_default(None)
     def get_link(self, show: Show, link_site: LinkSite) -> Link | None:
@@ -634,13 +625,12 @@ class DatabaseDatabase:
         link = self.q.fetchone()
         if link is None:
             return None
-        link = Link(**link)
-        return link
+        return Link(**link)
 
     @db_error_default(False)
     def has_link(self, site_key: str, key: str, show: int | None = None) -> bool:
         site = self.get_link_site(key=site_key)
-        if show is not None:
+        if show:
             self.q.execute(
                 "SELECT count(*) FROM Links WHERE site = ? AND site_key = ? AND show = ?",
                 (site.id, key, show),
@@ -659,7 +649,7 @@ class DatabaseDatabase:
         logger.debug("Inserting link: %s/%s", show_id, raw_show)
 
         site = self.get_link_site(key=raw_show.site_key)
-        if site is None:
+        if not site:
             logger.error('  Invalid site "%s"', raw_show.site_key)
             return
         site_key = raw_show.show_key
@@ -727,7 +717,7 @@ class DatabaseDatabase:
             id = stream.show.id
 
         # Get show
-        if id is None:
+        if not id:
             logger.error("Show ID not provided to get_show")
             return None
         self.q.execute(
@@ -736,7 +726,7 @@ class DatabaseDatabase:
             (id,),
         )
         show = self.q.fetchone()
-        if show is None:
+        if not show:
             return None
         show = Show(**show)
         show.aliases = self.get_aliases(show)
@@ -752,7 +742,7 @@ class DatabaseDatabase:
             (name,),
         )
         show = self.q.fetchone()
-        if show is None:
+        if not show:
             return None
         show = Show(**show)
         show.aliases = self.get_aliases(show)
@@ -760,8 +750,8 @@ class DatabaseDatabase:
 
     @db_error_default(EMPTY_LIST_STRING)
     def get_aliases(self, show: Show) -> list[str]:
-        self.q.execute("SELECT alias FROM Aliases where show = ?", (show.id,))
-        return [s for s, in self.q.fetchall()]
+        self.q.execute("SELECT alias FROM Aliases WHERE show = ?", (show.id,))
+        return [s["alias"] for s in self.q.fetchall()]
 
     @db_error_default(None)
     def add_show(self, raw_show: UnprocessedShow, commit: bool = True) -> int | None:
@@ -882,9 +872,9 @@ class DatabaseDatabase:
             (show.id,),
         )
         data = self.q.fetchone()
-        if data is not None:
-            return Episode(**data)
-        return None
+        if not data:
+            return None
+        return Episode(**data)
 
     @db_error
     def add_episode(self, show: Show, episode_num: int, post_url: str) -> None:
@@ -899,14 +889,11 @@ class DatabaseDatabase:
 
     @db_error_default(EMPTY_LIST_EPISODE)
     def get_episodes(self, show: Show, ensure_sorted: bool = True) -> list[Episode]:
-        episodes: list[Episode] = []
         self.q.execute(
             "SELECT episode AS number, post_url AS link FROM Episodes WHERE show = ?",
             (show.id,),
         )
-        for data in self.q.fetchall():
-            episodes.append(Episode(**data))
-
+        episodes = [Episode(**data) for data in self.q.fetchall()]
         if ensure_sorted:
             episodes = sorted(episodes, key=lambda e: e.number)
         return episodes
@@ -941,11 +928,11 @@ class DatabaseDatabase:
             (show.id, episode.number),
         )
         scores = [s[0] for s in self.q.fetchall()]
-        if len(scores) > 0:
-            score = sum(scores) / len(scores)
-            logger.debug("  Score: %f (from %d scores)", score, len(scores))
-            return EpisodeScore(show_id=show.id, episode=episode.number, score=score)
-        return None
+        if not scores:
+            return None
+        score = sum(scores) / len(scores)
+        logger.debug("  Score: %f (from %d scores)", score, len(scores))
+        return EpisodeScore(show_id=show.id, episode=episode.number, score=score)
 
     @db_error
     def add_episode_score(
@@ -969,15 +956,15 @@ class DatabaseDatabase:
     def get_poll_site(
         self, id: str | None = None, key: str | None = None
     ) -> PollSite | None:
-        if id is not None:
+        if id:
             self.q.execute("SELECT id, key FROM PollSites WHERE id = ?", (id,))
-        elif key is not None:
+        elif key:
             self.q.execute("SELECT id, key FROM PollSites WHERE key = ?", (key,))
         else:
             logger.error("ID or key required to get poll site")
             return None
         site = self.q.fetchone()
-        if site is None:
+        if not site:
             return None
         return PollSite(**site)
 
@@ -1014,7 +1001,7 @@ class DatabaseDatabase:
             (show.id, episode.number),
         )
         poll = self.q.fetchone()
-        if poll is None:
+        if not poll:
             return None
         return Poll(**poll)
 
@@ -1022,8 +1009,7 @@ class DatabaseDatabase:
     def get_polls(
         self, show: Show | None = None, missing_score: bool = False
     ) -> list[Poll]:
-        polls: list[Poll] = []
-        if show is not None:
+        if show:
             self.q.execute(
                 "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE show = ?",
                 (show.id,),
@@ -1035,14 +1021,12 @@ class DatabaseDatabase:
         else:
             logger.error("Need to select a show to get polls")
             return []
-        for poll in self.q.fetchall():
-            polls.append(Poll(**poll))
-        return polls
+        return [Poll(**poll) for poll in self.q.fetchall()]
 
     # Searching
-    @db_error_default(EMPTY_SET_SHOW)
-    def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[Show]:
-        shows: set[Show] = set()
+    @db_error_default(EMPTY_SET_INT)
+    def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[int]:
+        shows: set[int] = set()
         for name in names:
             logger.debug("Searching shows by name: %s", name)
             if exact:
@@ -1066,17 +1050,17 @@ class DatabaseDatabase:
 ## Conversions
 
 
-def to_show_type(db_val: str) -> ShowType:
-    for st in ShowType:
-        if st.value == db_val:
-            return st
-    return ShowType.UNKNOWN
+def to_show_type(db_val: int) -> ShowType:
+    try:
+        return ShowType(db_val)
+    except ValueError:
+        return ShowType.UNKNOWN
 
 
-def from_show_type(st: ShowType) -> str | None:
-    if st is None:
+def from_show_type(show_type: ShowType) -> int | None:
+    if not show_type:
         return None
-    return st.value
+    return show_type.value
 
 
 ## Collations
@@ -1088,10 +1072,9 @@ def _collate_alphanum(str1: str, str2: str) -> int:
 
     if str1 == str2:
         return 0
-    elif str1 < str2:
+    if str1 < str2:
         return -1
-    else:
-        return 1
+    return 1
 
 
 _alphanum_regex = re.compile("[^a-zA-Z0-9]+")

@@ -14,7 +14,7 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
-from data.models import EpisodeScore, Link, Show, ShowType, UnprocessedShow
+from data.models import Link, Show, ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler
 
@@ -33,23 +33,19 @@ class InfoHandler(AbstractInfoHandler):
         self.rate_limit_wait = 2
 
     def get_link(self, link: Link | None) -> str | None:
-        if link is None:
+        if not link:
             return None
         return self._show_link_base.format(id=link.site_key)
 
-    def extract_show_id(self, url: str | None) -> str | None:
-        if url is not None:
-            match = re.match(self._show_link_matcher, url, re.I)
-            if match:
-                return match.group(1) or match.group(2) or match.group(3)
+    def extract_show_id(self, url: str) -> str | None:
+        if match := re.match(self._show_link_matcher, url, re.I):
+            return match.group(1) or match.group(2) or match.group(3)
         return None
 
     def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
         return None
 
-    def get_show_score(
-        self, show: Show, link: Link, **kwargs: Any
-    ) -> EpisodeScore | None:
+    def get_show_score(self, show: Show, link: Link, **kwargs: Any) -> float | None:
         return None
 
     def get_seasonal_shows(
@@ -62,13 +58,13 @@ class InfoHandler(AbstractInfoHandler):
 
         # Request season page from AniDB
         response = self._site_request(self._season_url, **kwargs)
-        if response is None:
+        if not response:
             logger.error("Cannot get show list")
-            return list()
+            return []
 
         # Parse page
         shows_list = response.select(".calendar_all .g_section.middle .content .box")
-        new_shows = list()
+        new_shows: list[UnprocessedShow] = []
         for show in shows_list:
             top = show.find(class_="top")
             title_e = top.find("a")
@@ -108,7 +104,7 @@ class InfoHandler(AbstractInfoHandler):
 
         return new_shows
 
-    def find_show(self, show_name: str, **kwargs: Any) -> list[Show]:
+    def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
         return []
 
     def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
