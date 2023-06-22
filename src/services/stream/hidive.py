@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from .. import AbstractServiceHandler
 from data.models import Episode, UnprocessedStream
 
+
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.hidive.com/tv/{id}"
     _show_re = re.compile("hidive.com/tv/([\w-]+)", re.I)
@@ -48,9 +49,8 @@ class ServiceHandler(AbstractServiceHandler):
 
         # Parse html page
         sections = response.find_all("div", {"data-section": "episodes"})
-        #return [section.a['data-playurl'] for section in sections if section.a]
+        # return [section.a['data-playurl'] for section in sections if section.a]
         return sections
-
 
     @classmethod
     def _get_feed_url(cls, show_key):
@@ -72,8 +72,8 @@ class ServiceHandler(AbstractServiceHandler):
 
         title_section = response.find("div", {"class": "episodes"})
         if title_section is None:
-           error("Could not extract title")
-           return None
+            error("Could not extract title")
+            return None
 
         stream.name = title_section.h1.text
         return stream
@@ -91,23 +91,30 @@ class ServiceHandler(AbstractServiceHandler):
             return match.group(1)
         return None
 
-_episode_re = re.compile("(?:https://www.hidive.com)?/stream/[\w-]+/s\d{2}e(\d{3})", re.I)
-_episode_re_alter = re.compile("(?:https://www.hidive.com)?/stream/[\w-]+/\d{4}\d{2}\d{2}(\d{2})", re.I)
+
+_episode_re = re.compile(
+    "(?:https://www.hidive.com)?/stream/[\w-]+/s\d{2}e(\d{3})", re.I
+)
+_episode_re_alter = re.compile(
+    "(?:https://www.hidive.com)?/stream/[\w-]+/\d{4}\d{2}\d{2}(\d{2})", re.I
+)
 _episode_name_correct = re.compile("(?:E\d+|Shorts) ?\| ?(.*)")
 _episode_name_invalid = re.compile(".*coming soon.*", re.I)
+
 
 def _is_valid_episode(episode_data, show_key):
     # Possibly other cases to watch ?
     if episode_data.a is None:
         return False
-    #return re.match(_episode_re.format(id=show_key), episode_data) is not None
+    # return re.match(_episode_re.format(id=show_key), episode_data) is not None
 
     return True
+
 
 def _digest_episode(feed_episode):
     debug("Digesting episode")
 
-    episode_link = feed_episode.a['href']
+    episode_link = feed_episode.a["href"]
 
     # Get data
     num_match = _episode_re.match(episode_link)
@@ -133,6 +140,6 @@ def _digest_episode(feed_episode):
         name = None
 
     link = episode_link
-    date = datetime.utcnow() # Not included in stream !
+    date = datetime.utcnow()  # Not included in stream !
 
     return Episode(number=num, name=name, link=link, date=date)

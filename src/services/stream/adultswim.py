@@ -6,6 +6,7 @@ import dateutil.parser
 from .. import AbstractServiceHandler
 from data.models import Episode, UnprocessedStream
 
+
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.adultswim.com/videos/{id}/"
     _show_re = re.compile("adultswim.com/videos/([\w-]+)", re.I)
@@ -26,7 +27,9 @@ class ServiceHandler(AbstractServiceHandler):
                 try:
                     episodes.append(_digest_episode(episode_data))
                 except:
-                    exception(f"Problem digesting episode for {self.name}/{stream.show_key}")
+                    exception(
+                        f"Problem digesting episode for {self.name}/{stream.show_key}"
+                    )
 
         if len(episode_datas) > 0:
             debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
@@ -48,7 +51,6 @@ class ServiceHandler(AbstractServiceHandler):
         # Parse html page
         sections = response.find_all("div", itemprop="episode")
         return sections
-
 
     @classmethod
     def _get_feed_url(cls, show_key):
@@ -84,6 +86,7 @@ class ServiceHandler(AbstractServiceHandler):
             return match.group(1)
         return None
 
+
 def _is_valid_episode(episode_data, show_key):
     # Don't check old episodes (possible wrong season !)
     date_string = episode_data.find("meta", itemprop="datePublished")["content"]
@@ -98,6 +101,7 @@ def _is_valid_episode(episode_data, show_key):
         return False
 
     return True
+
 
 def _digest_episode(feed_episode):
     debug("Digesting episode")
