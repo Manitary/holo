@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://www.anime-planet.com/anime/{name}"
     _show_link_matcher = (

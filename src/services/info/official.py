@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InfoHandler(AbstractInfoHandler):
     def __init__(self):
         super().__init__("official", "Official Website")

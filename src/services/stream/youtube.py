@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ServiceHandler(AbstractServiceHandler):
     _playlist_api_query = "https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId={id}&key={key}"
     _videos_api_query = "https://youtube.googleapis.com/youtube/v3/videos?part=status&part=snippet&hl=en&id={id}&key={key}"
@@ -20,7 +21,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Episode finding
 
     def get_all_episodes(self, stream, **kwargs):
-        logger.info(f"Getting live episodes for Youtube/{stream.show_key}")
+        logger.info("Getting live episodes for Youtube/%s", stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Extract valid episodes from feed and digest
@@ -33,14 +34,12 @@ class ServiceHandler(AbstractServiceHandler):
                         episodes.append(episode)
                 except:
                     logger.exception(
-                        f"Problem digesting episode for Youtube/{stream.show_key}"
+                        "Problem digesting episode for Youtube/%s", stream.show_key
                     )
 
         if len(episode_datas) > 0:
             logger.debug(
-                "  {} episodes found, {} valid".format(
-                    len(episode_datas), len(episodes)
-                )
+                "  %d episodes found, %d valid", len(episode_datas), len(episodes)
             )
         else:
             logger.debug("  No episodes found")
@@ -54,12 +53,14 @@ class ServiceHandler(AbstractServiceHandler):
         # Request channel information
         response = self.request(url, json=True, **kwargs)
         if response is None:
-            logger.error(f"Cannot get episode feed for {self.name}/{show_key}")
+            logger.error("Cannot get episode feed for %s/%s", self.name, show_key)
             return list()
 
         # Extract videos ids and build new query for all videos
         if not _verify_feed(response):
-            logger.warning("Parsed feed could not be verified, may have unexpected results")
+            logger.warning(
+                "Parsed feed could not be verified, may have unexpected results"
+            )
         feed = response.get("items", list())
 
         video_ids = [item["contentDetails"]["videoId"] for item in feed]
@@ -68,12 +69,14 @@ class ServiceHandler(AbstractServiceHandler):
         # Request videos information
         response = self.request(url, json=True, **kwargs)
         if response is None:
-            logger.error(f"Cannot get video information for {self.name}/{show_key}")
+            logger.error("Cannot get video information for %s/%s", self.name, show_key)
             return list()
 
         # Return feed
         if not _verify_feed(response):
-            logger.warning("Parsed feed could not be verified, may have unexpected results")
+            logger.warning(
+                "Parsed feed could not be verified, may have unexpected results"
+            )
         return response.get("items", list())
 
     def _get_feed_url(self, show_key):
@@ -129,7 +132,8 @@ def _verify_feed(feed):
         return False
     if feed["pageInfo"]["totalResults"] > feed["pageInfo"]["resultsPerPage"]:
         logger.debug(
-            f"  Too many results ({feed['pageInfo']['totalResults']}), will not get all episodes"
+            "  Too many results (%s), will not get all episodes",
+            feed["pageInfo"]["totalResults"],
         )
         return False
     logger.debug("  Feed verified")
@@ -164,10 +168,10 @@ def _is_valid_episode(feed_episode, show_id):
         return False
     title = feed_episode["snippet"]["localized"]["title"]
     if len(title) == 0:
-        logger.info("  Video was exluded (no title found)")
+        logger.info("  Video was excluded (no title found)")
         return False
     if any(ex.search(title) is not None for ex in _excludors):
-        logger.info("  Video was exluded (excludors)")
+        logger.info("  Video was excluded (excludors)")
         return False
     if all(num.match(title) is None for num in _num_extractors):
         logger.info("  Video was excluded (no episode number found)")
@@ -193,14 +197,14 @@ def _digest_episode(feed_episode):
 
 
 def _extract_episode_num(name):
-    logger.debug(f'Extracting episode number from "{name}"')
+    logger.debug('Extracting episode number from "%s"', name)
     if any(ex.search(name) is not None for ex in _excludors):
         return None
     for regex in _num_extractors:
         match = regex.match(name)
         if match is not None:
             num = int(match.group(1))
-            logger.debug(f"  Match found, num={num}")
+            logger.debug("  Match found, num=%d", num)
             return num
     logger.debug("  No match found")
     return None

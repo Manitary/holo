@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class PollHandler(AbstractPollHandler):
     OPTIONS = ["Excellent", "Great", "Good", "Mediocre", "Bad"]
 
@@ -70,12 +71,15 @@ class PollHandler(AbstractPollHandler):
         return self._poll_results_link.format(id=poll.id)
 
     def get_score(self, poll):
-        logger.debug(f"Getting score for show {poll.show_id} / episode {poll.episode}")
+        logger.debug(
+            "Getting score for show %s / episode %d", poll.show_id, poll.episode
+        )
         try:
             response = self.request(self.get_results_link(poll), html=True)
         except:
             logger.error(
-                f"Couldn't get scores for poll {self.get_results_link(poll)} (query error)"
+                "Couldn't get scores for poll %s (query error)",
+                self.get_results_link(poll),
             )
             return None
 
@@ -91,19 +95,20 @@ class PollHandler(AbstractPollHandler):
             for div in divs:
                 label = div.find("span", class_="basic-option-title").text
                 if label not in self.OPTIONS:
-                    logger.error(f"Found unexpected label {label}, aborted")
+                    logger.error("Found unexpected label %s, aborted", label)
                     return None
                 value_text = div.find("span", class_="basic-option-percent").text
                 score = float(value_text.strip("%")) / 100
                 values[label] = score
             results = [values[k] for k in self.OPTIONS]
-            logger.info(f"Results: {str(results)}")
+            logger.info("Results: %s", results)
             total = sum([r * s for r, s in zip(results, range(5, 0, -1))])
             total = round(total, 2)
             return total
         except:
             logger.error(
-                f"Couldn't get scores for poll {self.get_results_link(poll)} (parsing error)"
+                "Couldn't get scores for poll %s (parsing error)",
+                self.get_results_link(poll),
             )
             return None
 

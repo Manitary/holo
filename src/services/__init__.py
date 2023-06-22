@@ -40,9 +40,7 @@ def import_all_services(pkg: ModuleType, class_name: str):
             services[handler.key] = _make_service(handler)
         else:
             logger.warning(
-                "Service module {}.{} has no handler {}".format(
-                    pkg.__name__, name, class_name
-                )
+                "Service module %s.%s has no handler %s", pkg.__name__, name, class_name
             )
         del module
     del importlib
@@ -117,12 +115,12 @@ class Requestable:
                 proxy = None
             else:
                 proxy = {"http": "http://{}:{}".format(*proxy)}
-                logger.debug("Using proxy: {}", proxy)
+                logger.debug("Using proxy: %s", proxy)
 
         headers = {"User-Agent": useragent}
         logger.debug("Sending request")
-        logger.debug("  URL={}".format(url))
-        logger.debug("  Headers={}".format(headers))
+        logger.debug("  URL=%s", url)
+        logger.debug("  Headers=%s", headers)
         try:
             response = requests.get(
                 url, headers=headers, proxies=proxy, auth=auth, timeout=timeout
@@ -130,11 +128,11 @@ class Requestable:
         except requests.exceptions.Timeout:
             logger.error("  Response timed out")
             return None
-        logger.debug("  Status code: {}".format(response.status_code))
+        logger.debug("  Status code: %s", response.status_code)
         if (
             not response.ok or response.status_code == 204
         ):  # 204 is a special case for MAL errors
-            logger.error("Response {}: {}".format(response.status_code, response.reason))
+            logger.error("Response %s: %s", response.status_code, response.reason)
             return None
         if (
             len(response.text) == 0
@@ -343,7 +341,7 @@ class AbstractInfoHandler(ABC, Requestable):
         self.config = None
 
     def set_config(self, config):
-        # logger.debug("Setting config of {} to {}".format(self.key, config))
+        # logger.debug("Setting config of %s to %s", self.key, config)
         self.config = config
 
     @abstractmethod

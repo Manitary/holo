@@ -11,6 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ServiceHandler(AbstractServiceHandler):
     _search_base = (
         "https://{domain}/?page=rss&c=1_2&f={filter}&q={q}&exclude={excludes}"
@@ -23,7 +24,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Episode finding
 
     def get_all_episodes(self, stream, **kwargs):
-        logger.info("Getting live episodes for Nyaa/{}".format(stream.show_key))
+        logger.info("Getting live episodes for Nyaa/%s", stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Check data validity and digest
@@ -36,16 +37,12 @@ class ServiceHandler(AbstractServiceHandler):
                         episodes.append(episode)
                 except:
                     logger.exception(
-                        "Problem digesting episode for Crunchyroll/{}".format(
-                            stream.show_key
-                        )
+                        "Problem digesting episode for Crunchyroll/%s", stream.show_key
                     )
 
         if len(episode_datas) > 0:
             logger.debug(
-                "  {} episodes found, {} valid".format(
-                    len(episode_datas), len(episodes)
-                )
+                "  %d episodes found, %d valid", len(episode_datas), len(episodes)
             )
         else:
             logger.debug("  No episodes found")
@@ -74,15 +71,17 @@ class ServiceHandler(AbstractServiceHandler):
                         show_episodes = episodes.get(stream, list())
                         show_episodes.append(episode)
                         logger.debug(
-                            f"Adding episode {episode.number} for show {stream.show.id}"
+                            "Adding episode %d for show %s",
+                            episode.number,
+                            stream.show.id,
                         )
                         episodes[stream] = show_episodes
                 except:
-                    logger.exception(f"Problem digesting torrent {torrent.id}")
+                    logger.exception("Problem digesting torrent %s", torrent.id)
         return episodes
 
     def _find_matching_stream(self, torrent, streams):
-        logger.debug(f"Searching matching stream for torrent {torrent.title}")
+        logger.debug("Searching matching stream for torrent %s", torrent.title)
         found_streams = list()
 
         for stream in streams:
@@ -90,19 +89,19 @@ class ServiceHandler(AbstractServiceHandler):
             names = [show.name] + show.aliases + [stream.show_key]
 
             for name in names:
-                # logger.debug(f"  Trying: {name}")
+                # logger.debug("  Trying: %s", name)
                 # Match if each word in the show name is in the torrent name
                 # Intent is to allow inclusion of fansub group names
                 words_show = set(_normalize_show_name(name).split())
                 words_torrent = set(_normalize_show_name(torrent.title).split())
                 if words_show.issubset(words_torrent):
-                    logger.debug(f"  -> MATCH")
-                    logger.info(f"Matching found for torrent {torrent.title}")
-                    logger.info(f"  -> {show.name}")
+                    logger.debug("  -> MATCH")
+                    logger.info("Matching found for torrent %s", torrent.title)
+                    logger.info("  -> %s", show.name)
                     found_streams.append(stream)
                     break
         if not found_streams:
-            logger.debug(f"No matching show found for torrent {torrent.title}")
+            logger.debug("No matching show found for torrent %s", torrent.title)
         return found_streams
 
     def _get_recent_torrents(self, **kwargs):
@@ -121,14 +120,16 @@ class ServiceHandler(AbstractServiceHandler):
             return list()
 
         if not _verify_feed(response):
-            logger.warning("Parsed feed could not be verified, may have unexpected results")
+            logger.warning(
+                "Parsed feed could not be verified, may have unexpected results"
+            )
         return response.get("entries", list())
 
     def _get_feed_episodes(self, show_key, **kwargs):
         """
         Always returns a list.
         """
-        logger.info("Getting episodes for Nyaa/{}".format(show_key))
+        logger.info("Getting episodes for Nyaa/%s", show_key)
         if "domain" not in self.config or not self.config["domain"]:
             logger.error("  Domain not specified in config")
             return list()
@@ -138,7 +139,7 @@ class ServiceHandler(AbstractServiceHandler):
         query = re.sub("season", " ", query, flags=re.I)
         query = re.sub(" +", " ", query)
         query = re.sub("(?:[^ ])-", " ", query)  # do not ignore the NOT operator
-        logger.debug("  query={}".format(query))
+        logger.debug("  query=%s", query)
         query = url_quote(query, safe="", errors="ignore")
 
         domain = self.config.get("domain", "nyaa.si")
@@ -149,12 +150,14 @@ class ServiceHandler(AbstractServiceHandler):
         )
         response = self.request(url, rss=True, **kwargs)
         if response is None:
-            logger.error("Cannot get latest show for Nyaa/{}".format(show_key))
+            logger.error("Cannot get latest show for Nyaa/%s", show_key)
             return list()
 
         # Parse RSS feed
         if not _verify_feed(response):
-            logger.warning("Parsed feed could not be verified, may have unexpected results")
+            logger.warning(
+                "Parsed feed could not be verified, may have unexpected results"
+            )
         return response.get("entries", list())
 
     # Don't need these!
@@ -196,17 +199,17 @@ def _is_valid_episode(feed_episode):
         return False
     number = _extract_episode_num(feed_episode["title"])
     if number is None or number <= 0:
-        logger.debug(f"  Probably not the right episode number ({number})")
+        logger.debug("  Probably not the right episode number (%s)", number)
         return False
     return True
 
 
 def _digest_episode(feed_episode):
     title = feed_episode["title"]
-    logger.debug('Extracting episode number from "{}"'.format(title))
+    logger.debug('Extracting episode number from "%s"', title)
     episode_num = _extract_episode_num(title)
     if episode_num is not None:
-        logger.debug("  Match found, num={}".format(episode_num))
+        logger.debug("  Match found, num=%d", episode_num)
         date = feed_episode["published_parsed"] or datetime.utcnow()
         link = feed_episode["id"]
         return Episode(number=episode_num, link=link, date=date)

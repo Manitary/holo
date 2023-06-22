@@ -42,7 +42,7 @@ def _ensure_connection():
 def submit_text_post(subreddit, title, body):
     _ensure_connection()
     try:
-        logger.info("Checking availability of flair {_config.post_flair_id}")
+        logger.info("Checking availability of flair %s", _config.post_flair_id)
         flair_ids = [
             ft["flair_template_id"]
             for ft in _r.subreddit(subreddit).flair.link_templates.user_selectable()
@@ -53,7 +53,7 @@ def submit_text_post(subreddit, title, body):
             logger.warning("Flair not selectable, flairing will be disabled")
             flair_id, flair_text = None, None
 
-        logger.info("Submitting post to {}".format(subreddit))
+        logger.info("Submitting post to %s", subreddit)
         new_post = _r.subreddit(subreddit).submit(
             title,
             selftext=body,
@@ -70,7 +70,7 @@ def submit_text_post(subreddit, title, body):
 def edit_text_post(url, body):
     _ensure_connection()
     try:
-        logger.info(f"Editing post {url}")
+        logger.info("Editing post %s", url)
         post = get_text_post(url)
         post.edit(body)
         return post
@@ -106,7 +106,7 @@ def get_text_post(url):
 # 	if distinguish and reply is not None:
 # 		response = reply.distinguish()
 # 		if len(response) > 0 and len(response["errors"]) > 0:
-# 			logger.error("Failed to distinguish: {}".format(response["errors"]))
+# 			logger.error("Failed to distinguish: %s", response["errors"])
 
 # Utilities
 

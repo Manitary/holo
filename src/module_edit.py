@@ -5,6 +5,7 @@ from data.models import UnprocessedShow, UnprocessedStream, ShowType, str_to_sho
 
 logger = logging.getLogger(__name__)
 
+
 def main(config, db, *args, **kwargs):
     if len(args) == 1:
         if _edit_with_file(db, args[0]):
@@ -20,7 +21,7 @@ def main(config, db, *args, **kwargs):
 def _edit_with_file(db, edit_file):
     import yaml
 
-    logger.info('Parsing show edit file "{}"'.format(edit_file))
+    logger.info('Parsing show edit file "%s"', edit_file)
     try:
         with open(edit_file, "r", encoding="UTF-8") as f:
             parsed = list(yaml.full_load_all(f))
@@ -28,7 +29,7 @@ def _edit_with_file(db, edit_file):
         logger.exception("Failed to parse edit file")
         return
 
-    logger.debug("  num shows={}".format(len(parsed)))
+    logger.debug("  num shows=%d", len(parsed))
 
     for doc in parsed:
         name = doc["title"]
@@ -38,11 +39,11 @@ def _edit_with_file(db, edit_file):
         has_source = doc.get("has_source", False)
         is_nsfw = doc.get("is_nsfw", False)
 
-        logger.info('Adding show "{}" ({})'.format(name, stype))
-        logger.debug("  has_source={}".format(has_source))
-        logger.debug("  is_nsfw={}".format(is_nsfw))
+        logger.info('Adding show "%s" (%s)', name, stype)
+        logger.debug("  has_source=%s", has_source)
+        logger.debug("  is_nsfw=%s", is_nsfw)
         if stype == ShowType.UNKNOWN:
-            logger.error('Invalid show type "{}"'.format(stype))
+            logger.error('Invalid show type "%s"', stype)
             return False
 
         show = UnprocessedShow(
@@ -54,7 +55,7 @@ def _edit_with_file(db, edit_file):
             is_nsfw=is_nsfw,
         )
         found_ids = db.search_show_ids_by_names(name, exact=True)
-        logger.debug("Found ids: {found_ids}")
+        logger.debug("Found ids: %s", found_ids)
         if len(found_ids) == 0:
             show_id = db.add_show(show, commit=False)
         elif len(found_ids) == 1:
@@ -72,11 +73,11 @@ def _edit_with_file(db, edit_file):
                 if not url:
                     continue
 
-                logger.debug("  Info {}: {}".format(info_key, url))
+                logger.debug("  Info %s: %s", info_key, url)
                 info_handler = services.get_link_handler(key=info_key)
                 if info_handler:
                     info_id = info_handler.extract_show_id(url)
-                    logger.debug("    id={}".format(info_id))
+                    logger.debug("    id=%s", info_id)
 
                     if not db.has_link(info_key, info_id, show_id):
                         show.site_key = info_key
@@ -100,16 +101,16 @@ def _edit_with_file(db, edit_file):
                             remote_offset = int(url[roi + 1 :])
                         url = url[:roi]
                 except:
-                    logger.exception('Improperly formatted stream URL "{}"'.format(url))
+                    logger.exception('Improperly formatted stream URL "%s"', url)
                     continue
 
-                logger.info("  Stream {}: {}".format(service_key, url))
+                logger.info("  Stream %s: %s", service_key, url)
 
                 service_id = service_key.split("|")[0]
                 stream_handler = services.get_service_handler(key=service_id)
                 if stream_handler:
                     show_key = stream_handler.extract_show_key(url)
-                    logger.debug("    id={}".format(show_key))
+                    logger.debug("    id=%s", show_key)
 
                     if not db.has_stream(service_id, show_key):
                         s = UnprocessedStream(
@@ -138,6 +139,8 @@ def _edit_with_file(db, edit_file):
             for alias in aliases:
                 if alias != "":
                     db.add_alias(show_id, alias)
-            logger.info(f"Added {len(aliases)} alias{'es' if len(aliases) > 1 else ''}")
+            logger.info(
+                "Added %d alias%s", len(aliases), "es" if len(aliases) > 1 else ""
+            )
 
     return True

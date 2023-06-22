@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class WhitespaceFriendlyConfigParser(configparser.ConfigParser):
     def get(self, section, option, *args, **kwargs):
         val = super().get(section, option, *args, **kwargs)

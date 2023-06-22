@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://anilist.co/anime/{id}"
     _show_link_matcher = "https?://anilist\\.co/anime/([0-9]+)"
@@ -38,7 +39,7 @@ class InfoHandler(AbstractInfoHandler):
         return None
 
     def get_seasonal_shows(self, year=None, season=None, **kwargs):
-        # logger.debug("Getting season shows: year={}, season={}".format(year, season))
+        # logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
         # Request season page from AniDB
         # url = self._season_url.format(year=year, season=season)

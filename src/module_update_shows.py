@@ -5,6 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def main(config, db, **kwargs):
     # Find data not provided by the edit module
     _check_missing_stream_info(config, db, update_db=not config.debug)
@@ -24,13 +25,13 @@ def _check_show_lengths(config, db, update_db=True):
 
     shows = db.get_shows(missing_length=True)
     for show in shows:
-        logger.info("Updating episode count of {} ({})".format(show.name, show.id))
+        logger.info("Updating episode count of %s (%s)", show.name, show.id)
         length = None
 
         # Check all info handlers for an episode count
         # Some may not implement get_episode_count and return None
         for handler in services.get_link_handlers().values():
-            logger.info("  Checking {} ({})".format(handler.name, handler.key))
+            logger.info("  Checking %s (%s)", handler.name, handler.key)
 
             # Get show link to site represented by the handler
             site = db.get_link_site(key=handler.key)
@@ -42,18 +43,16 @@ def _check_show_lengths(config, db, update_db=True):
             # Validate length
             new_length = handler.get_episode_count(link, useragent=config.useragent)
             if new_length is not None:
-                logger.debug("    Lists length: {}".format(new_length))
+                logger.debug("    Lists length: %s", new_length)
                 if length is not None and new_length != length:
                     logger.warning(
-                        "    Conflict between lengths {} and {}".format(
-                            new_length, length
-                        )
+                        "    Conflict between lengths %s and %s", new_length, length
                     )
                 length = new_length
 
         # Length found, update database
         if length is not None:
-            logger.info("New episode count: {}".format(length))
+            logger.info("New episode count: %s", length)
             if update_db:
                 db.set_show_episode_count(show, length)
             else:
@@ -67,12 +66,12 @@ def _disable_finished_shows(config, db, update_db=True):
     for show in shows:
         latest_episode = db.get_latest_episode(show)
         if latest_episode is not None and 0 < show.length <= latest_episode.number:
-            logger.info('  Disabling show "{}"'.format(show.name))
+            logger.info('  Disabling show "%s"', show.name)
             if latest_episode.number > show.length:
                 logger.warning(
-                    "    Episode number ({}) greater than show length ({})".format(
-                        latest_episode.number, show.length
-                    )
+                    "    Episode number (%d) greater than show length (%d)",
+                    latest_episode.number,
+                    show.length,
                 )
             if update_db:
                 db.set_show_enabled(show, enabled=False, commit=False)
@@ -87,9 +86,10 @@ def _check_missing_stream_info(config, db, update_db=True):
     for stream in streams:
         service_info = db.get_service(id=stream.service)
         logger.info(
-            "Updating missing stream info of {} ({}/{})".format(
-                stream.name, service_info.name, stream.show_key
-            )
+            "Updating missing stream info of %s (%s/%s)",
+            stream.name,
+            service_info.name,
+            stream.show_key,
         )
 
         service = services.get_service_handler(key=service_info.key)
@@ -98,9 +98,9 @@ def _check_missing_stream_info(config, db, update_db=True):
             logger.error("  Stream info not found")
             continue
 
-        logger.debug("  name={}".format(stream.name))
-        logger.debug("  key={}".format(stream.show_key))
-        logger.debug("  id={}".format(stream.show_id))
+        logger.debug("  name=%s", stream.name)
+        logger.debug("  key=%s", stream.show_key)
+        logger.debug("  id=%s", stream.show_id)
         if update_db:
             db.update_stream(
                 stream,
@@ -122,16 +122,17 @@ def _check_new_episode_scores(config, db, update_db):
         latest_episode = db.get_latest_episode(show)
         if latest_episode is not None:
             logger.info(
-                "For show {} ({}), episode {}".format(
-                    show.name, show.id, latest_episode.number
-                )
+                "For show %s (%s), episode %d",
+                show.name,
+                show.id,
+                latest_episode.number,
             )
 
             scores = db.get_episode_scores(show, latest_episode)
             # Check if any scores have been found rather than checking for each service
             if len(scores) == 0:
                 for handler in services.get_link_handlers().values():
-                    logger.info("  Checking {} ({})".format(handler.name, handler.key))
+                    logger.info("  Checking %s (%s)", handler.name, handler.key)
 
                     # Get show link to site represented by the handler
                     site = db.get_link_site(key=handler.key)
@@ -144,7 +145,7 @@ def _check_new_episode_scores(config, db, update_db):
                         show, link, useragent=config.useragent
                     )
                     if new_score is not None:
-                        logger.info("    Score: {}".format(new_score))
+                        logger.info("    Score: %f", new_score)
                         db.add_episode_score(
                             show, latest_episode, site, new_score, commit=False
                         )
@@ -158,17 +159,22 @@ def _check_new_episode_scores(config, db, update_db):
 def _record_poll_scores(config, db, update_db):
     polls = db.get_polls(missing_score=True)
     handler = services.get_default_poll_handler()
-    logger.info(f"Record scores for service {handler.key}")
+    logger.info("Record scores for service %s", handler.key)
 
     updated = 0
     for poll in polls:
         if timedelta(days=8) < datetime.now() - poll.date < timedelta(days=93):
             score = handler.get_score(poll)
             logger.info(
-                f"Updating poll score for show {poll.show_id} / episode {poll.episode} ({score})"
+                "Updating poll score for show %s / episode %d (%f)",
+                poll.show_id,
+                poll.episode,
+                score,
             )
             if score:
                 db.update_poll_score(poll, score, commit=update_db)
                 updated += 1
 
-    logger.info(f"{updated} scores recorded, {len(polls) - updated} scores not updated")
+    logger.info(
+        "%d scores recorded, %d scores not updated", updated, len(polls) - updated
+    )

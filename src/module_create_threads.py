@@ -4,6 +4,7 @@ from datetime import date, timedelta
 import services
 from data.models import Stream, Episode
 import reddit
+
 logger = logging.getLogger(__name__)
 from module_find_episodes import _create_reddit_post, _edit_reddit_post
 
@@ -20,7 +21,7 @@ def main(config, db, show_name, episode):
     post_url = _create_reddit_post(
         config, db, show, stream, int_episode, submit=not config.debug
     )
-    logger.info("  Post URL: {}".format(post_url))
+    logger.info("  Post URL: %s", post_url)
     if post_url is not None:
         post_url = post_url.replace("http:", "https:")
         db.add_episode(show, int_episode.number, post_url)

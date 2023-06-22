@@ -36,7 +36,7 @@ def main(config, args, extra_args):
 
     # Run the requested module
     try:
-        logger.debug("Running module {}".format(config.module))
+        logger.debug("Running module %s", config.module)
         if config.module == "setup":
             logger.info("Setting up database")
             db.setup_tables()
@@ -215,7 +215,7 @@ if __name__ == "__main__":
         logger.info("------------------------------------------------------------")
     err = config_loader.validate(c)
     if err:
-        logger.warning("Configuration state invalid: {}".format(err))
+        logger.warning("Configuration state invalid: %s", err)
 
     if c.debug:
         logger.info("DEBUG MODE ENABLED")
@@ -225,7 +225,7 @@ if __name__ == "__main__":
 
     time_diff = end_time - start_time
     logger.info("")
-    logger.info("Run time: {:.6} seconds".format(time_diff))
+    logger.info("Run time: %.6f seconds", time_diff)
 
     if use_log:
         logger.info("------------------------------------------------------------\n")

@@ -9,6 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://myanimelist.net/anime/{id}/"
     _show_link_matcher = "https?://(?:.+?\.)?myanimelist\.net/anime/([0-9]+)"
@@ -61,7 +62,7 @@ class InfoHandler(AbstractInfoHandler):
         return shows
 
     def find_show_info(self, show_id, **kwargs):
-        logger.debug("Getting show info for {}".format(show_id))
+        logger.debug("Getting show info for %s", show_id)
 
         # Request show page from MAL
         url = self._show_link_base.format(id=show_id)
@@ -78,7 +79,7 @@ class InfoHandler(AbstractInfoHandler):
             logger.warning("  Name elem not found")
             return None
         name_english = name_elem.string
-        logger.info("  English: {}".format(name_english))
+        logger.info("  English: %s", name_english)
 
         names = [name_english]
         return UnprocessedShow(
@@ -111,7 +112,7 @@ class InfoHandler(AbstractInfoHandler):
             logger.warning("  Count not found")
             return None
         count = int(count_elem.strip())
-        logger.debug("  Count: {}".format(count))
+        logger.debug("  Count: %d", count)
 
         return count
 
@@ -132,13 +133,13 @@ class InfoHandler(AbstractInfoHandler):
         except:
             logger.warning("  Count not found")
             return None
-        logger.debug("  Score: {}".format(score))
+        logger.debug("  Score: %f", score)
 
         return score
 
     def get_seasonal_shows(self, year=None, season=None, **kwargs):
         # TODO: use year and season if provided
-        logger.debug("Getting season shows: year={}, season={}".format(year, season))
+        logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
         # Request season page from MAL
         response = self._mal_request(self._season_show_url, **kwargs)

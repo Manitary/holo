@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "/r/{id}"
     _show_link_matcher = "/r/(\w+)"

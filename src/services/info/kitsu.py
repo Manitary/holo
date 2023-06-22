@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://kitsu.io/anime/{slug}"
     _show_link_matcher = "https?://kitsu\.io/anime/([a-zA-Z0-9-]+)"
@@ -69,7 +70,7 @@ class InfoHandler(AbstractInfoHandler):
         return None
 
     def get_seasonal_shows(self, year=None, season=None, **kwargs):
-        # logger.debug("Getting season shows: year={}, season={}".format(year, season))
+        # logger.debug("Getting season shows: year=%s, season=%s", year, season)
 
         # Request season data from Kitsu
         # url = self._season_url.format(year=year, season=season)
@@ -96,7 +97,7 @@ class InfoHandler(AbstractInfoHandler):
         return list()
 
     def find_show_info(self, show_id, **kwargs):
-        # logger.debug("Getting show info for {}".format(show_id))
+        # logger.debug("Getting show info for %s", show_id)
 
         # Request show data from Kitsu
         # url = self._api_base + "?filter[slug]=" + show_id + "&fields[anime]=titles,abbreviatedTitles"

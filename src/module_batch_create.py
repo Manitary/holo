@@ -4,6 +4,7 @@ from datetime import date, timedelta
 import services
 from data.models import Stream, Episode
 import reddit
+
 logger = logging.getLogger(__name__)
 from module_find_episodes import (
     _create_reddit_post,
@@ -27,7 +28,7 @@ def main(config, db, show_name, episode_count):
         post_url = _create_reddit_post(
             config, db, show, stream, int_episode, submit=not config.debug
         )
-        logger.info("  Post URL: {}".format(post_url))
+        logger.info("  Post URL: %s", post_url)
         if post_url is not None:
             post_url = post_url.replace("http:", "https:")
             db.add_episode(show, int_episode.number, post_url)
@@ -69,8 +70,8 @@ def main(config, db, show_name, episode_count):
     db.set_show_enabled(show, False, commit=not config.debug)
 
     for i, url in enumerate(post_urls):
-        logger.info(f"Episode {i}: {url}")
-    logger.info(f"Megathread: {megathread_url}")
+        logger.info("Episode %d: %s", i, url)
+    logger.info("Megathread: %s", megathread_url)
 
 
 def _create_megathread_content(config, db, show, stream, episode_count):
@@ -84,7 +85,7 @@ def _create_megathread_content(config, db, show, stream, episode_count):
         Episode(number=episode_count),
         stream,
     )
-    logger.info("Title:\n" + title)
+    logger.info("Title:\n%s", title)
 
     body = _format_post_text(
         config,
@@ -95,7 +96,7 @@ def _create_megathread_content(config, db, show, stream, episode_count):
         Episode(number=episode_count),
         stream,
     )
-    logger.info("Body:\n" + body)
+    logger.info("Body:%s", body)
     return title, body
 
 

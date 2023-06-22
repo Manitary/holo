@@ -4,9 +4,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def main(config, db, output_yaml, output_file=None, **kwargs):
     if output_yaml and output_file:
-        logger.debug("Using output file: {}".format(output_file))
+        logger.debug("Using output file: %s", output_file)
         create_season_config(config, db, output_file)
     # check_new_shows(config, db, update_db=not config.debug)
     # check_new_shows(config, db)
@@ -44,7 +45,7 @@ def _get_primary_source_shows(config):
 
     site_key = config.discovery_primary_source
     if site_key not in link_handlers:
-        logger.warning("Primary source site handler for {} not installed".format(site_key))
+        logger.warning("Primary source site handler for %s not installed", site_key)
         return
 
     site_handler = link_handlers.get(site_key)
@@ -54,11 +55,11 @@ def _get_primary_source_shows(config):
             raw_show.show_type is not ShowType.UNKNOWN
             and raw_show.show_type not in config.new_show_types
         ):
-            logger.debug("  Show isn't an allowed type ({})".format(raw_show.show_type))
-            logger.debug("    name={}".format(raw_show.name))
+            logger.debug("  Show isn't an allowed type (%s)", raw_show.show_type)
+            logger.debug("    name=%s", raw_show.name)
             continue
 
-        logger.debug("New show: {}".format(raw_show.name))
+        logger.debug("New show: %s", raw_show.name)
 
         d = OrderedDict(
             [
@@ -105,14 +106,14 @@ def check_new_shows(config, db, update_db=True):
             raw_show.show_type is not ShowType.UNKNOWN
             and raw_show.show_type not in config.new_show_types
         ):
-            logger.debug("  Show isn't an allowed type ({})".format(raw_show.show_type))
-            logger.debug("    name={}".format(raw_show.name))
+            logger.debug("  Show isn't an allowed type (%s)", raw_show.show_type)
+            logger.debug("    name=%s", raw_show.name)
             continue
 
         if not db.has_link(raw_show.site_key, raw_show.show_key):
             # Link doesn't doesn't exist in db
             logger.debug(
-                "New show link: {} on {}".format(raw_show.show_key, raw_show.site_key)
+                "New show link: %s on %s", raw_show.show_key, raw_show.site_key
             )
 
             # Check if related to existing show
@@ -128,7 +129,7 @@ def check_new_shows(config, db, update_db=True):
             else:
                 # Uh oh, multiple matches
                 # TODO: make sure this isn't triggered by multi-season shows
-                logger.warning("  More than one show found, ids={}".format(shows))
+                logger.warning("  More than one show found, ids=%s", shows)
                 # show_id = shows[-1]
 
             # Add link to show
@@ -145,11 +146,11 @@ def _get_new_season_shows(config, db):
     handlers = services.get_link_handlers()
     for site in db.get_link_sites():
         if site.key not in handlers:
-            logger.warning("Link site handler for {} not installed".format(site.key))
+            logger.warning("Link site handler for %s not installed", site.key)
             continue
 
         handler = handlers.get(site.key)
-        logger.info("  Checking {} ({})".format(handler.name, handler.key))
+        logger.info("  Checking %s (%s)", handler.name, handler.key)
         raw_shows = handler.get_seasonal_shows(useragent=config.useragent)
         for raw_show in raw_shows:
             yield raw_show
@@ -162,7 +163,7 @@ def check_new_streams(config, db, update_db=True):
     logger.info("Checking for new streams")
     for raw_stream in _get_new_season_streams(config, db):
         if not db.has_stream(raw_stream.service_key, raw_stream.show_key):
-            logger.debug("  {}".format(raw_stream.name))
+            logger.debug("  %s", raw_stream.name)
 
             # Search for a related show
             shows = db.search_show_ids_by_names(raw_stream.name)
@@ -174,16 +175,16 @@ def check_new_streams(config, db, update_db=True):
             else:
                 # Uh oh, multiple matches
                 # TODO: make sure this isn't triggered by multi-season shows
-                logger.warning("    More than one show found, ids={}".format(shows))
+                logger.warning("    More than one show found, ids=%s", shows)
 
             # Add stream
             if update_db:
                 db.add_stream(raw_stream, show_id, commit=False)
         else:
             logger.debug(
-                "  Stream already exists for {} on {}".format(
-                    raw_stream.show_key, raw_stream.service_key
-                )
+                "  Stream already exists for %s on %s",
+                raw_stream.show_key,
+                raw_stream.service_key,
             )
 
     if update_db:
@@ -194,12 +195,12 @@ def _get_new_season_streams(config, db):
     handlers = services.get_service_handlers()
     for service in db.get_services():
         if service.key not in handlers:
-            logger.warning("Service handler for {} not installed".format(service.key))
+            logger.warning("Service handler for %s not installed", service.key)
             continue
 
         if service.enabled:
             handler = handlers.get(service.key)
-            logger.info("  Checking {} ({})".format(handler.name, handler.key))
+            logger.info("  Checking %s (%s)", handler.name, handler.key)
             raw_stream = handler.get_seasonal_streams(useragent=config.useragent)
             for raw_stream in raw_stream:
                 yield raw_stream
@@ -218,17 +219,17 @@ def match_show_streams(config, db, update_db=True):
 
     # Check each link site
     for site in db.get_link_sites():
-        logger.debug("  Checking service: {}".format(site.key))
+        logger.debug("  Checking service: %s", site.key)
         handler = services.get_link_handler(site)
 
         # Check remaining streams
         for stream in list(streams):  # Iterate over copy of stream list allow removals
-            logger.debug("    Checking stream: {}".format(stream.name))
+            logger.debug("    Checking stream: %s", stream.name)
             raw_shows = handler.find_show(stream.name, useragent=config.useragent)
             if len(raw_shows) == 1:
                 # Show info found
                 raw_show = raw_shows.pop()
-                logger.debug("      Found show: {}".format(raw_show.name))
+                logger.debug("      Found show: %s", raw_show.name)
 
                 # Search stored names for show matches
                 shows = db.search_show_ids_by_names(raw_show.name, *raw_show.more_names)

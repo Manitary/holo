@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.adultswim.com/videos/{id}/"
     _show_re = re.compile("adultswim.com/videos/([\w-]+)", re.I)
@@ -18,7 +19,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Episode finding
 
     def get_all_episodes(self, stream, **kwargs):
-        logger.info(f"Getting live episodes for {self.name}/{stream.show_key}")
+        logger.info("Getting live episodes for %s/%s", self.name, stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Check episode validity and digest
@@ -29,24 +30,28 @@ class ServiceHandler(AbstractServiceHandler):
                     episodes.append(_digest_episode(episode_data))
                 except:
                     logger.exception(
-                        f"Problem digesting episode for {self.name}/{stream.show_key}"
+                        "Problem digesting episode for %s/%s",
+                        self.name,
+                        stream.show_key,
                     )
 
         if len(episode_datas) > 0:
-            logger.debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
+            logger.debug(
+                "  %d episodes found, %d valid", len(episode_datas), len(episodes)
+            )
         else:
             logger.debug("  No episode found")
         return episodes
 
     def _get_feed_episodes(self, show_key, **kwargs):
-        logger.info(f"Getting episodes for {self.name}/{show_key}")
+        logger.info(f"Getting episodes for %s/%s", self.name, show_key)
 
         url = self._get_feed_url(show_key)
 
         # Send request
         response = self.request(url, html=True, **kwargs)
         if response is None:
-            logger.error(f"Cannot get show page for {self.name}/{show_key}")
+            logger.error("Cannot get show page for %s/%s", self.name, show_key)
             return list()
 
         # Parse html page
@@ -63,7 +68,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Remove info getting
 
     def get_stream_info(self, stream, **kwargs):
-        logger.info(f"Getting stream info for {self.name}/{stream.show_key}")
+        logger.info("Getting stream info for %s/%s", self.name, stream.show_key)
 
         url = self._get_feed_url(stream.show_key)
         response = self.request(url, html=True, **kwargs)

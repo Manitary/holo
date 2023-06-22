@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.hidive.com/tv/{id}"
     _show_re = re.compile("hidive.com/tv/([\w-]+)", re.I)
@@ -17,7 +18,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Episode finding
 
     def get_all_episodes(self, stream, **kwargs):
-        logger.info(f"Getting live episodes for HiDive/{stream.show_key}")
+        logger.info("Getting live episodes for HiDive/%s", stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Check episode validity and digest
@@ -29,23 +30,27 @@ class ServiceHandler(AbstractServiceHandler):
                     if episode is not None:
                         episodes.append(episode)
                 except:
-                    logger.exception(f"Problem digesting episode for HiDive/{stream.show_key}")
+                    logger.exception(
+                        "Problem digesting episode for HiDive/%s", stream.show_key
+                    )
 
         if len(episode_datas) > 0:
-            logger.debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
+            logger.debug(
+                "  %d episodes found, %d valid", len(episode_datas), len(episodes)
+            )
         else:
             logger.debug("  No episode found")
         return episodes
 
     def _get_feed_episodes(self, show_key, **kwargs):
-        logger.info(f"Getting episodes for HiDive/{show_key}")
+        logger.info("Getting episodes for HiDive/%s", show_key)
 
         url = self._get_feed_url(show_key)
 
         # Send request
         response = self.request(url, html=True, **kwargs)
         if response is None:
-            logger.error(f"Cannot get show page for HiDive/{show_key}")
+            logger.error("Cannot get show page for HiDive/%s", show_key)
             return list()
 
         # Parse html page
@@ -63,7 +68,7 @@ class ServiceHandler(AbstractServiceHandler):
     # Remove info getting
 
     def get_stream_info(self, stream, **kwargs):
-        logger.info(f"Getting stream info for HiDive/{stream.show_key}")
+        logger.info("Getting stream info for HiDive/%s", stream.show_key)
 
         url = self._get_feed_url(stream.show_key)
         response = self.request(url, html=True, **kwargs)
@@ -126,7 +131,7 @@ def _digest_episode(feed_episode):
         logger.warning("Using alternate episode key format")
         num = int(num_match_alter.group(1))
     else:
-        logger.warning(f"Unknown episode number format in {episode_link}")
+        logger.warning("Unknown episode number format in %s", episode_link)
         return None
     if num <= 0:
         return None
@@ -134,10 +139,10 @@ def _digest_episode(feed_episode):
     name = feed_episode.h2.text
     name_match = _episode_name_correct.match(name)
     if name_match:
-        logger.debug(f"  Corrected title from {name}")
+        logger.debug("  Corrected title from %s", name)
         name = name_match.group(1)
     if _episode_name_invalid.match(name):
-        logger.warning(f"  Episode title not found")
+        logger.warning("  Episode title not found")
         name = None
 
     link = episode_link
