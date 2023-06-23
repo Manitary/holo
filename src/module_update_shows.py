@@ -81,7 +81,7 @@ def _disable_finished_shows(db: DatabaseDatabase, update_db: bool = True) -> Non
             if update_db:
                 db.set_show_enabled(show, enabled=False, commit=False)
     if update_db:
-        db.save()
+        db.commit()
 
 
 def _check_missing_stream_info(
@@ -169,9 +169,7 @@ def _check_new_episode_scores(
             db.commit()
 
 
-def _record_poll_scores(
-    db: DatabaseDatabase, update_db: bool = True
-) -> None:
+def _record_poll_scores(db: DatabaseDatabase, update_db: bool = True) -> None:
     polls = db.get_polls(missing_score=True)
     handler = services.get_default_poll_handler()
     logger.info("Record scores for service %s", handler.key)

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import yaml
 
@@ -25,7 +26,7 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
     logger.info('Parsing show edit file "%s"', edit_file)
     try:
         with open(edit_file, "r", encoding="UTF-8") as f:
-            parsed = list(yaml.full_load_all(f))
+            parsed: list[dict[str, Any]] = list(yaml.full_load_all(f))
     except yaml.YAMLError:
         logger.exception("Failed to parse edit file")
         return
@@ -90,7 +91,7 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
 
         # Streams
 
-        streams = doc.get("streams", {})
+        streams: dict[str, str] = doc.get("streams", {})
         for service_key, url in streams.items():
             if not url:
                 continue
@@ -111,12 +112,15 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
             stream_handler = services.get_service_handler(key=service_id)
             if stream_handler:
                 show_key = stream_handler.extract_show_key(url)
+                if not show_key:
+                    logger.debug("Could not extract show key")
+                    continue
                 logger.debug("    id=%s", show_key)
 
                 if not db.has_stream(service_id, show_key):
                     s = UnprocessedStream(
                         service_key=service_id,
-                        show_key=show_key or "",
+                        show_key=show_key,
                         remote_offset=remote_offset,
                         display_offset=0,
                     )
