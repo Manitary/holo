@@ -112,21 +112,18 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
             stream_handler = services.get_service_handler(key=service_id)
             if stream_handler:
                 show_key = stream_handler.extract_show_key(url)
-                if not show_key:
-                    logger.debug("Could not extract show key")
-                    continue
                 logger.debug("    id=%s", show_key)
 
                 if not db.has_stream(service_id, show_key):
                     s = UnprocessedStream(
                         service_key=service_id,
-                        show_key=show_key,
+                        show_key=show_key or "",
                         remote_offset=remote_offset,
                         display_offset=0,
                     )
                     db.add_stream(s, show_id, commit=False)
                 else:
-                    service = db.get_service(key=service_id)
+                    service = db.get_service_from_key(key=service_id)
                     s = db.get_stream(service_tuple=(service, show_key))
                     db.update_stream(
                         s, show=show_id, remote_offset=remote_offset, commit=False

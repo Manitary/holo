@@ -24,7 +24,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
             if not service_handler:
                 continue
 
-            streams = db.get_streams(service=service)
+            streams = db.get_streams_for_service(service=service)
             logger.debug("%d streams found", len(streams))
 
             recent_episodes = service_handler.get_recent_episodes(
@@ -37,7 +37,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
             )
 
             for stream, episodes in recent_episodes.items():
-                show = db.get_show(stream=stream)
+                show = db.get_show(stream)
                 if not show or not show.enabled:
                     continue
 
@@ -59,9 +59,9 @@ def main(config: Config, db: DatabaseDatabase) -> None:
     # Check generic services
     # Note : selecting only shows with missing streams avoids troll torrents,
     # but also can cause delays if supported services are later than unsupported ones
-    # other_shows = set(db.get_shows(missing_stream=True)) | set(db.get_shows(delayed=True))
-    other_shows = set(db.get_shows(missing_stream=False)) | set(
-        db.get_shows(delayed=True)
+    # other_shows = set(db.get_shows_missing_stream()) | set(db.get_shows_delayed())
+    other_shows = set(db.get_shows_by_enabled_status(enabled=True)) | set(
+        db.get_shows_delayed()
     )
     if len(other_shows) > 0:
         logger.info("Checking generic services for %d shows", len(other_shows))
@@ -83,7 +83,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
             )
 
             for stream, episodes in recent_episodes.items():
-                show = db.get_show(stream=stream)
+                show = db.get_show(stream)
                 if not show or not show.enabled:
                     continue
 
@@ -331,11 +331,11 @@ def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show)
     logger.debug("Generating stream text for show %s", show)
     stream_texts: list[str] = []
 
-    streams = db.get_streams(show=show)
+    streams = db.get_streams_for_show(show=show)
     for stream in streams:
         if not stream.active:
             continue
-        service = db.get_service(id=stream.service)
+        service = db.get_service_from_id(id=stream.service)
         if not (service and service.enabled and service.use_in_post):
             continue
         service_handler = services.get_service_handler(service)
@@ -348,7 +348,7 @@ def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show)
         )
         stream_texts.append(text)
 
-    lite_streams = db.get_lite_streams(show=show)
+    lite_streams = db.get_lite_streams_from_show(show)
     for lite_stream in lite_streams:
         text = safe_format(
             formats["stream"],
@@ -371,7 +371,7 @@ def _gen_text_links(db: DatabaseDatabase, formats: dict[str, str], show: Show) -
         str
     ] = []  # for links that come last, e.g. official and subreddit
     for link in links:
-        site = db.get_link_site(id=link.site)
+        site = db.get_link_site_from_id(id=link.site)
         if not (site and site.enabled):
             continue
         link_handler = services.get_link_handler(site)

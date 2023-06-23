@@ -4,7 +4,7 @@ import logging
 import re
 import sqlite3
 from datetime import datetime, timezone
-from functools import lru_cache, wraps
+from functools import lru_cache, singledispatchmethod, wraps
 from typing import Any, Callable, TypeVar
 
 from unidecode import unidecode
@@ -290,154 +290,166 @@ class DatabaseDatabase(sqlite3.Connection):
     # Services
     @db_error_default(None)
     @lru_cache(10)
-    def get_service(
-        self, id: int | None = None, key: str | None = None
-    ) -> Service | None:
-        if id is not None:
-            q = self.execute(
-                "SELECT id, key, name, enabled, use_in_post FROM Services WHERE id = ?",
-                (id,),
-            )
-        elif key is not None:
-            q = self.execute(
-                "SELECT id, key, name, enabled, use_in_post FROM Services WHERE key = ?",
-                (key,),
-            )
-        else:
+    def get_service_from_id(self, id: int | None = None) -> Service | None:
+        if not id:
             logger.error("ID or key required to get service")
             return None
-        service = q.fetchone()
-        return Service(**service)
+        q = self.execute(
+            "SELECT id, key, name, enabled, use_in_post FROM Services WHERE id = ?",
+            (id,),
+        )
+        return Service(**q.fetchone())
+
+    @db_error_default(None)
+    @lru_cache(10)
+    def get_service_from_key(self, key: str | None = None) -> Service | None:
+        if not key:
+            logger.error("ID or key required to get service")
+            return None
+        q = self.execute(
+            "SELECT id, key, name, enabled, use_in_post FROM Services WHERE key = ?",
+            (key,),
+        )
+        return Service(**q.fetchone())
 
     @db_error_default(EMPTY_LIST_SERVICE)
-    def get_services(
-        self, enabled: bool = True, disabled: bool = False
-    ) -> list[Service]:
+    def get_services(self, enabled: bool = True) -> list[Service]:
         services: list[Service] = []
-        if enabled:
-            q = self.execute(
-                "SELECT id, key, name, enabled, use_in_post FROM Services WHERE enabled = 1"
-            )
-            for service in q.fetchall():
-                services.append(Service(**service))
-        if disabled:
-            q = self.execute(
-                "SELECT id, key, name, enabled, use_in_post FROM Services WHERE enabled = 0"
-            )
-            for service in q.fetchall():
-                services.append(Service(**service))
+        q = self.execute(
+            "SELECT id, key, name, enabled, use_in_post FROM Services WHERE enabled = ?",
+            (1 if enabled else 0,),
+        )
+        for service in q.fetchall():
+            services.append(Service(**service))
         return services
 
     @db_error_default(None)
     def get_stream(
-        self, id: int | None = None, service_tuple: tuple[Service, str] | None = None
+        self, service_tuple: tuple[Service, str] | None = None
     ) -> Stream | None:
-        if id:
-            logger.debug("Getting stream for id %s", id)
-
-            q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams WHERE id = ?",
-                (id,),
-            )
-            stream = q.fetchone()
-            if stream is None:
-                logger.error("Stream %s not found", id)
-                return None
-            stream = Stream(**stream)
-        elif service_tuple is not None:
-            service, show_key = service_tuple
-            logger.debug("Getting stream for %s/%s", service, show_key)
-            q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams WHERE service = ? AND show_key = ?",
-                (service.id, show_key),
-            )
-            stream = q.fetchone()
-            if stream is None:
-                logger.error("Stream %s not found", id)
-                return None
-            stream = Stream(**stream)
-        else:
+        if not service_tuple:
             logger.error("Nothing provided to get stream")
             return None
-
-        show = self.get_show(id=stream.show)  # convert show id to show model
-        if not show:
-            logger.warning("Show not found")
+        service, show_key = service_tuple
+        logger.debug("Getting stream for %s/%s", service, show_key)
+        q = self.execute(
+            "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams WHERE service = ? AND show_key = ?",
+            (service.id, show_key),
+        )
+        stream = q.fetchone()
+        if stream is None:
+            logger.error("Stream %s not found", service_tuple)
             return None
-        stream.show = show
-        return stream
+        return self._make_stream_from_query(stream)
 
     @db_error_default(EMPTY_LIST_STREAM)
-    def get_streams(
-        self,
-        service: Service | None = None,
-        show: Show | None = None,
-        active: bool = True,
-        unmatched: bool = False,
-        missing_name: bool = False,
+    def get_streams_for_service(
+        self, service: Service | None = None, active: bool = True
     ) -> list[Stream]:
-        # Not the best combination of options, but it's only the usage needed
-        if service is not None and active == True:
+        if not service:
+            logger.error("A service must be provided to get streams")
+            return []
+        service = self.get_service_from_key(key=service.key)
+        if not service:
+            logger.error("Could not get service from its own key")
+            return []
+        if active:
             logger.debug("Getting all active streams for service %s", service.key)
-            service = self.get_service(key=service.key)
             q = self.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE service = ? AND active = 1 AND \
 							(SELECT enabled FROM Shows WHERE id = show) = 1",
                 (service.id,),
             )
-        elif service is not None and active == False:
+        else:
             logger.debug("Getting all inactive streams for service %s", service.key)
-            service = self.get_service(key=service.key)
             q = self.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE service = ? AND active = 0",
                 (service.id,),
             )
-        elif show is not None and active == True:
-            logger.debug("Getting all streams for show %s", show.id)
+        streams = list(
+            filter(
+                None, [self._make_stream_from_query(stream) for stream in q.fetchall()]
+            )
+        )
+        return streams
+
+    @db_error_default(EMPTY_LIST_STREAM)
+    def get_streams_for_show(
+        self, show: Show | None = None, active: bool = True
+    ) -> list[Stream]:
+        if not show:
+            logger.error("A show must be provided to get streams")
+            return []
+        if active:
+            logger.debug("Getting all active streams for show %s", show.id)
             q = self.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE show = ? AND active = 1 AND \
 							(SELECT enabled FROM Shows WHERE id = show) = 1",
                 (show.id,),
             )
-        elif show is not None and active == False:
-            logger.debug("Getting all streams for show %s", show.id)
+        else:
+            logger.debug("Getting all inactive streams for show %s", show.id)
             q = self.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE show = ? AND active = 0",
                 (show.id,),
             )
-        elif unmatched:
-            logger.debug("Getting unmatched streams")
-            q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE show IS NULL"
+        streams = list(
+            filter(
+                None, [self._make_stream_from_query(stream) for stream in q.fetchall()]
             )
-        elif missing_name and active == True:
+        )
+        return streams
+
+    @db_error_default(EMPTY_LIST_STREAM)
+    def get_unmatched_streams(self) -> list[Stream]:
+        logger.debug("Getting unmatched streams")
+        q = self.execute(
+            "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
+                        WHERE show IS NULL"
+        )
+        streams = list(
+            filter(
+                None, [self._make_stream_from_query(stream) for stream in q.fetchall()]
+            )
+        )
+        return streams
+
+    @db_error_default(EMPTY_LIST_STREAM)
+    def get_streams_missing_name(
+        self,
+        active: bool = True,
+    ) -> list[Stream]:
+        # Not the best combination of options, but it's only the usage needed
+        if active:
+            logger.debug("Getting all active streams missing show name")
             q = self.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE (name IS NULL OR name = '') AND active = 1 AND \
 							(SELECT enabled FROM Shows WHERE id = show) = 1"
             )
-        elif missing_name and active == False:
+        else:
+            logger.debug("Getting all inactive streams missing show name")
             q = self.execute(
                 "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
 							WHERE (name IS NULL OR name = '') AND active = 0"
             )
-        else:
-            logger.error("A service or show must be provided to get streams")
-            return []
-
         streams = [Stream(**stream) for stream in q.fetchall()]
-        for stream in streams:
-            stream.show = self.get_show(id=stream.show)  # convert show id to show model
+        streams = list(
+            filter(
+                None, [self._make_stream_from_query(stream) for stream in q.fetchall()]
+            )
+        )
         return streams
 
     @db_error_default(False)
     def has_stream(self, service_key: str, key: str) -> bool:
-        service = self.get_service(key=service_key)
+        service = self.get_service_from_key(key=service_key)
+        if not service:
+            return False
         q = self.execute(
             "SELECT count(*) FROM Streams WHERE service = ? AND show_key = ?",
             (service.id, key),
@@ -450,7 +462,7 @@ class DatabaseDatabase(sqlite3.Connection):
     ) -> None:
         logger.debug("Inserting stream: %s", raw_stream)
 
-        service = self.get_service(key=raw_stream.service_key)
+        service = self.get_service_from_key(key=raw_stream.service_key)
         self.execute(
             "INSERT INTO Streams (service, show, show_id, show_key, name, remote_offset, display_offset, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
@@ -507,38 +519,20 @@ class DatabaseDatabase(sqlite3.Connection):
 
     # Infos
     @db_error_default(EMPTY_LIST_LITESTREAM)
-    def get_lite_streams(
+    def get_lite_streams_from_show(
         self,
-        service: Service | None = None,
         show: Show | None = None,
-        missing_link: bool = False,
     ) -> list[LiteStream]:
-        if service:
-            logger.debug("Getting all lite streams for service key %s", service)
-            q = self.execute(
-                "SELECT show, service, service_name, url FROM LiteStreams \
-							WHERE service = ?",
-                (service,),
-            )
-        elif show:
-            logger.debug("Getting all lite streams for show %s", show)
-            q = self.execute(
-                "SELECT show, service, service_name, url FROM LiteStreams \
-							WHERE show = ?",
-                (show.id,),
-            )
-        elif missing_link:
-            logger.debug("Getting lite streams without link")
-            q = self.execute(
-                "SELECT show, service, service_name, url FROM LiteStreams \
-							WHERE url IS NULL"
-            )
-        else:
+        if not show:
             logger.error("A service or show must be provided to get lite streams")
             return []
-
-        lite_streams = [LiteStream(**lite_stream) for lite_stream in q.fetchall()]
-        return lite_streams
+        logger.debug("Getting all lite streams for show %s", show)
+        q = self.execute(
+            "SELECT show, service, service_name, url FROM LiteStreams \
+                        WHERE show = ?",
+            (show.id,),
+        )
+        return [LiteStream(**lite_stream) for lite_stream in q.fetchall()]
 
     @db_error
     def add_lite_stream(
@@ -553,20 +547,26 @@ class DatabaseDatabase(sqlite3.Connection):
 
     # Links
     @db_error_default(None)
-    def get_link_site(
-        self, id: str | None = None, key: str | None = None
-    ) -> LinkSite | None:
-        if id:
-            q = self.execute(
-                "SELECT id, key, name, enabled FROM LinkSites WHERE id = ?", (id,)
-            )
-        elif key:
-            q = self.execute(
-                "SELECT id, key, name, enabled FROM LinkSites WHERE key = ?", (key,)
-            )
-        else:
+    def get_link_site_from_id(self, id: str | None = None) -> LinkSite | None:
+        if not id:
+            logger.error("ID required to get link site")
+            return None
+        q = self.execute(
+            "SELECT id, key, name, enabled FROM LinkSites WHERE id = ?", (id,)
+        )
+        site = q.fetchone()
+        if not site:
+            return None
+        return LinkSite(**site)
+
+    @db_error_default(None)
+    def get_link_site_from_key(self, key: str | None = None) -> LinkSite | None:
+        if not key:
             logger.error("ID or key required to get link site")
             return None
+        q = self.execute(
+            "SELECT id, key, name, enabled FROM LinkSites WHERE key = ?", (key,)
+        )
         site = q.fetchone()
         if not site:
             return None
@@ -574,15 +574,11 @@ class DatabaseDatabase(sqlite3.Connection):
 
     @db_error_default(EMPTY_LIST_LINKSITE)
     def get_link_sites(self, enabled: bool = True) -> list[LinkSite]:
-        sites: list[LinkSite] = []
-        if enabled:
-            q = self.execute(
-                "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = ?",
-                (1 if enabled else 0,),
-            )
-            for link in q.fetchall():
-                sites.append(LinkSite(**link))
-        return sites
+        q = self.execute(
+            "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = ?",
+            (1 if enabled else 0,),
+        )
+        return [LinkSite(**link) for link in q.fetchall()]
 
     @db_error_default(EMPTY_LIST_LINK)
     def get_links(self, show: Show | None = None) -> list[Link]:
@@ -595,8 +591,7 @@ class DatabaseDatabase(sqlite3.Connection):
         q = self.execute(
             "SELECT site, show, site_key FROM Links WHERE show = ?", (show.id,)
         )
-        links = [Link(**link) for link in q.fetchall()]
-        return links
+        return [Link(**link) for link in q.fetchall()]
 
     @db_error_default(None)
     def get_link(self, show: Show, link_site: LinkSite) -> Link | None:
@@ -607,13 +602,15 @@ class DatabaseDatabase(sqlite3.Connection):
             (show.id, link_site.id),
         )
         link = q.fetchone()
-        if link is None:
+        if not link:
             return None
         return Link(**link)
 
     @db_error_default(False)
     def has_link(self, site_key: str, key: str, show: int | None = None) -> bool:
-        site = self.get_link_site(key=site_key)
+        site = self.get_link_site_from_key(key=site_key)
+        if not site:
+            return False
         if show:
             q = self.execute(
                 "SELECT count(*) FROM Links WHERE site = ? AND site_key = ? AND show = ?",
@@ -632,7 +629,7 @@ class DatabaseDatabase(sqlite3.Connection):
     ) -> None:
         logger.debug("Inserting link: %s/%s", show_id, raw_show)
 
-        site = self.get_link_site(key=raw_show.site_key)
+        site = self.get_link_site_from_key(key=raw_show.site_key)
         if not site:
             logger.error('  Invalid site "%s"', raw_show.site_key)
             return
@@ -647,74 +644,69 @@ class DatabaseDatabase(sqlite3.Connection):
 
     # Shows
     @db_error_default(EMPTY_LIST_SHOW)
-    def get_shows(
-        self,
-        missing_length: bool = False,
-        missing_stream: bool = False,
-        enabled: bool = True,
-        delayed: bool = False,
-    ) -> list[Show]:
-        shows: list[Show] = []
-        if missing_length:
-            q = self.execute(
-                "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
+    def get_shows_missing_length(self, enabled: bool = True) -> list[Show]:
+        q = self.execute(
+            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
 				WHERE (length IS NULL OR length = '' OR length = 0) AND enabled = ?",
-                (enabled,),
-            )
-        elif missing_stream:
-            q = self.execute(
-                "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows show\
+            (enabled,),
+        )
+        return [self._make_show_from_query(show) for show in q.fetchall()]
+
+    @db_error_default(EMPTY_LIST_SHOW)
+    def get_shows_missing_stream(self, enabled: bool = True) -> list[Show]:
+        q = self.execute(
+            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows show\
 				WHERE (SELECT count(*) FROM Streams stream, Services service \
 				       WHERE stream.show = show.id \
 				       AND stream.active = 1 \
 				       AND stream.service = service.id \
 				       AND service.enabled = 1) = 0 \
 				AND enabled = ?",
-                (enabled,),
-            )
-        elif delayed:
-            q = self.execute(
-                "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
+            (enabled,),
+        )
+        return [self._make_show_from_query(show) for show in q.fetchall()]
+
+    @db_error_default(EMPTY_LIST_SHOW)
+    def get_shows_delayed(self, enabled: bool = True) -> list[Show]:
+        q = self.execute(
+            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
 				WHERE delayed = 1 AND enabled = ?",
-                (enabled,),
-            )
-        else:
-            q = self.execute(
-                "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
+            (enabled,),
+        )
+        return [self._make_show_from_query(show) for show in q.fetchall()]
+
+    @db_error_default(EMPTY_LIST_SHOW)
+    def get_shows_by_enabled_status(self, enabled: bool) -> list[Show]:
+        q = self.execute(
+            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
 				WHERE enabled = ?",
-                (enabled,),
-            )
-        for show in q.fetchall():
-            show = Show(**show)
-            show.aliases = self.get_aliases(show)
-            shows.append(show)
-        return shows
+            (enabled,),
+        )
+        return [self._make_show_from_query(show) for show in q.fetchall()]
+
+    @singledispatchmethod
+    def get_show(self, arg: int | Stream | None) -> Show | None:
+        if not arg:
+            logger.error("Show ID or stream not provided to get_show")
 
     @db_error_default(None)
-    def get_show(
-        self, id: int | None = None, stream: Stream | None = None
-    ) -> Show | None:
-        # logger.debug("Getting show from database")
-
-        # Get show ID
-        if stream and not id:
-            id = stream.show.id
-
-        # Get show
-        if not id:
-            logger.error("Show ID not provided to get_show")
-            return None
+    @get_show.register
+    def _(self, arg: int) -> Show | None:
         q = self.execute(
             "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
 			WHERE id = ?",
-            (id,),
+            (arg,),
         )
         show = q.fetchone()
         if not show:
             return None
-        show = Show(**show)
-        show.aliases = self.get_aliases(show)
-        return show
+        return self._make_show_from_query(show)
+
+    @db_error_default(None)
+    @get_show.register
+    def _(self, arg: Stream) -> Show | None:
+        show_id = arg.show.id
+        return self.get_show(show_id)
 
     @db_error_default(None)
     def get_show_by_name(self, name: str) -> Show | None:
@@ -728,9 +720,7 @@ class DatabaseDatabase(sqlite3.Connection):
         show = q.fetchone()
         if not show:
             return None
-        show = Show(**show)
-        show.aliases = self.get_aliases(show)
-        return show
+        return self._make_show_from_query(show)
 
     @db_error_default(EMPTY_LIST_STRING)
     def get_aliases(self, show: Show) -> list[str]:
@@ -784,7 +774,7 @@ class DatabaseDatabase(sqlite3.Connection):
             self.execute(
                 "UPDATE Shows SET name_en = ? WHERE id = ?", (name_en, show_id)
             )
-        if length != 0:
+        if length:
             self.execute("UPDATE Shows SET length = ? WHERE id = ?", (length, show_id))
         self.execute(
             "UPDATE Shows SET type = ?, has_source = ?, is_nsfw = ? WHERE id = ?",
@@ -833,11 +823,11 @@ class DatabaseDatabase(sqlite3.Connection):
     # Episodes
     @db_error_default(True)
     def stream_has_episode(self, stream: Stream, episode_num: int) -> bool:
-        self.execute(
+        q = self.execute(
             "SELECT count(*) FROM Episodes WHERE show = ? AND episode = ?",
             (stream.show, episode_num),
         )
-        num_found = self.get_count()
+        num_found = q.fetchone()["count(*)"]
         logger.debug(
             "Found %d entries matching show %s, episode %d",
             num_found,
@@ -987,21 +977,10 @@ class DatabaseDatabase(sqlite3.Connection):
         return Poll(**poll)
 
     @db_error_default(EMPTY_LIST_POLL)
-    def get_polls(
-        self, show: Show | None = None, missing_score: bool = False
-    ) -> list[Poll]:
-        if show:
-            q = self.execute(
-                "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE show = ?",
-                (show.id,),
-            )
-        elif missing_score:
-            q = self.execute(
-                "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE score is NULL AND show IN (SELECT id FROM Shows where enabled = 1)"
-            )
-        else:
-            logger.error("Need to select a show to get polls")
-            return []
+    def get_polls_missing_score(self) -> list[Poll]:
+        q = self.execute(
+            "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE score is NULL AND show IN (SELECT id FROM Shows where enabled = 1)"
+        )
         return [Poll(**poll) for poll in q.fetchall()]
 
     # Searching
@@ -1024,6 +1003,20 @@ class DatabaseDatabase(sqlite3.Connection):
                 logger.debug("  Found match: %s | %s", match["show"], match["name"])
                 shows.add(match["show"])
         return shows
+
+    def _make_stream_from_query(self, row: dict[str, Any]) -> Stream | None:
+        show_id = row.get("show", None)
+        show = self.get_show(show_id)
+        if not show:
+            logger.debug("Could not get show %s from stream", show_id)
+            return None
+        row["show"] = show
+        return Stream(**row)
+
+    def _make_show_from_query(self, row: dict[str, Any]) -> Show:
+        show = Show(**row)
+        show.aliases = self.get_aliases(show)
+        return show
 
 
 # Helper methods

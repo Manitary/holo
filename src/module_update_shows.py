@@ -27,7 +27,7 @@ def _check_show_lengths(
 ) -> None:
     logger.info("Checking show lengths")
 
-    shows = db.get_shows(missing_length=True)
+    shows = db.get_shows_missing_length()
     for show in shows:
         logger.info("Updating episode count of %s (%s)", show.name, show.id)
         length = None
@@ -38,7 +38,7 @@ def _check_show_lengths(
             logger.info("  Checking %s (%s)", handler.name, handler.key)
 
             # Get show link to site represented by the handler
-            site = db.get_link_site(key=handler.key)
+            site = db.get_link_site_from_key(key=handler.key)
             link = db.get_link(show, site)
             if not link:
                 logger.error("Failed to create link")
@@ -67,7 +67,7 @@ def _check_show_lengths(
 def _disable_finished_shows(db: DatabaseDatabase, update_db: bool = True) -> None:
     logger.info("Checking for disabled shows")
 
-    shows = db.get_shows()
+    shows = db.get_shows_by_enabled_status(enabled=True)
     for show in shows:
         latest_episode = db.get_latest_episode(show)
         if latest_episode and 0 < show.length <= latest_episode.number:
@@ -89,9 +89,9 @@ def _check_missing_stream_info(
 ) -> None:
     logger.info("Checking for missing stream info")
 
-    streams = db.get_streams(missing_name=True)
+    streams = db.get_streams_missing_name()
     for stream in streams:
-        service_info = db.get_service(id=stream.service)
+        service_info = db.get_service_from_id(id=stream.service)
         if not service_info:
             continue
         logger.info(
@@ -130,7 +130,7 @@ def _check_new_episode_scores(
 ) -> None:
     logger.info("Checking for new episode scores")
 
-    shows = db.get_shows(enabled=True)
+    shows = db.get_shows_by_enabled_status(enabled=True)
     for show in shows:
         latest_episode = db.get_latest_episode(show)
         if not latest_episode:
@@ -152,7 +152,7 @@ def _check_new_episode_scores(
             logger.info("  Checking %s (%s)", handler.name, handler.key)
 
             # Get show link to site represented by the handler
-            site = db.get_link_site(key=handler.key)
+            site = db.get_link_site_from_key(key=handler.key)
             link = db.get_link(show, site)
             if not link:
                 logger.error("Failed to create link")
@@ -170,7 +170,7 @@ def _check_new_episode_scores(
 
 
 def _record_poll_scores(db: DatabaseDatabase, update_db: bool = True) -> None:
-    polls = db.get_polls(missing_score=True)
+    polls = db.get_polls_missing_score()
     handler = services.get_default_poll_handler()
     logger.info("Record scores for service %s", handler.key)
 

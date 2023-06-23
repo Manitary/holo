@@ -240,7 +240,7 @@ def match_show_streams(
     config: Config, db: DatabaseDatabase, update_db: bool = True
 ) -> None:
     logger.info("Matching streams to shows")
-    streams = db.get_streams(unmatched=True)
+    streams = db.get_unmatched_streams()
 
     if not streams:
         logger.debug("  No unmatched streams")
