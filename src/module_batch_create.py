@@ -4,9 +4,9 @@ from config import Config
 from data.database import DatabaseDatabase
 from data.models import Episode, Show, Stream
 from module_find_episodes import (
-    _create_reddit_post,
-    _edit_reddit_post,
-    _format_post_text,
+    create_reddit_post,
+    edit_reddit_post,
+    format_post_text,
 )
 from reddit import RedditHolo, get_shortlink_from_id
 
@@ -26,7 +26,7 @@ def main(
     post_urls: list[str] = []
     for i in range(1, int_episode_count + 1):
         int_episode = Episode(number=i)
-        post_url = _create_reddit_post(
+        post_url = create_reddit_post(
             config,
             db,
             show,
@@ -43,7 +43,7 @@ def main(
         post_urls.append(str(post_url))
 
     for editing_episode in db.get_episodes(show):
-        _edit_reddit_post(
+        edit_reddit_post(
             config,
             db,
             show,
@@ -83,7 +83,7 @@ def _create_megathread_content(
     config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode_count: int
 ) -> tuple[str, str]:
     title = _create_megathread_title(config, show)
-    title = _format_post_text(
+    title = format_post_text(
         config,
         db,
         title,
@@ -94,7 +94,7 @@ def _create_megathread_content(
     )
     logger.info("Title:\n%s", title)
 
-    body = _format_post_text(
+    body = format_post_text(
         config,
         db,
         config.batch_thread_post_body,

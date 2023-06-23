@@ -164,7 +164,7 @@ def _process_new_episode(
     # New episode!
     if already_seen or episode_number_gap:
         return False
-    post_url = _create_reddit_post(
+    post_url = create_reddit_post(
         config,
         db,
         show,
@@ -188,7 +188,7 @@ def _process_new_episode(
     edit_history_length = int(4 * 13 / 2)  # cols x rows / 2
     editing_episodes.sort(key=lambda x: x.number)
     for editing_episode in editing_episodes[-edit_history_length:]:
-        _edit_reddit_post(
+        edit_reddit_post(
             config,
             db,
             show,
@@ -200,7 +200,7 @@ def _process_new_episode(
     return True
 
 
-def _create_reddit_post(
+def create_reddit_post(
     config: Config,
     db: DatabaseDatabase,
     show: Show,
@@ -221,7 +221,7 @@ def _create_reddit_post(
     return get_shortlink_from_id(new_post.id)
 
 
-def _edit_reddit_post(
+def edit_reddit_post(
     config: Config,
     db: DatabaseDatabase,
     show: Show,
@@ -248,11 +248,11 @@ def _create_post_contents(
     quiet: bool = False,
 ) -> tuple[str, str]:
     title = _create_post_title(config, show, episode)
-    title = _format_post_text(
+    title = format_post_text(
         config, db, title, config.post_formats, show, episode, stream
     )
     logger.info("Title:\n%s", title)
-    body = _format_post_text(
+    body = format_post_text(
         config, db, config.post_body, config.post_formats, show, episode, stream
     )
     if not quiet:
@@ -260,7 +260,7 @@ def _create_post_contents(
     return title, body
 
 
-def _format_post_text(
+def format_post_text(
     config: Config,
     db: DatabaseDatabase,
     text: str,

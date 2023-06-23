@@ -3,14 +3,13 @@ import logging
 import yaml
 
 import services
-from config import Config
 from data.database import DatabaseDatabase
 from data.models import ShowType, UnprocessedShow, UnprocessedStream, str_to_showtype
 
 logger = logging.getLogger(__name__)
 
 
-def main(config: Config, db: DatabaseDatabase, edit_file: str) -> None:
+def main(db: DatabaseDatabase, edit_file: str) -> None:
     if not edit_file:
         logger.warning("Nothing to do")
         return
@@ -117,7 +116,7 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
                 if not db.has_stream(service_id, show_key):
                     s = UnprocessedStream(
                         service_key=service_id,
-                        show_key=show_key,
+                        show_key=show_key or "",
                         remote_offset=remote_offset,
                         display_offset=0,
                     )

@@ -15,11 +15,11 @@ def main(config: Config, db: DatabaseDatabase) -> None:
     if config.record_scores:
         _check_new_episode_scores(config, db, update_db=not config.debug)
     # Record poll scores to avoid querying them every time
-    _record_poll_scores(config, db, update_db=not config.debug)
+    _record_poll_scores(db, update_db=not config.debug)
     # Show lengths aren't always known at the start of the season
     _check_show_lengths(config, db, update_db=not config.debug)
     # Check if shows have finished and disable them if they have
-    _disable_finished_shows(config, db, update_db=not config.debug)
+    _disable_finished_shows(db, update_db=not config.debug)
 
 
 def _check_show_lengths(
@@ -64,9 +64,7 @@ def _check_show_lengths(
                 logger.warning("Debug enabled, not updating database")
 
 
-def _disable_finished_shows(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
-) -> None:
+def _disable_finished_shows(db: DatabaseDatabase, update_db: bool = True) -> None:
     logger.info("Checking for disabled shows")
 
     shows = db.get_shows()
@@ -172,7 +170,7 @@ def _check_new_episode_scores(
 
 
 def _record_poll_scores(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    db: DatabaseDatabase, update_db: bool = True
 ) -> None:
     polls = db.get_polls(missing_score=True)
     handler = services.get_default_poll_handler()

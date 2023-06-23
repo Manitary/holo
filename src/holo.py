@@ -61,7 +61,7 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
             logger.info("Editing database")
             import module_edit as m
 
-            m.main(config=config, db=db, edit_file=args.extra[0])
+            m.main(db=db, edit_file=args.extra[0])
         elif config.module == "episode":
             logger.info("Finding new episodes")
             import module_find_episodes as m
@@ -198,8 +198,6 @@ def main() -> None:
     if use_log:
         os.makedirs(config.log_dir, exist_ok=True)
 
-        # from datetime import datetime
-        # log_file = "logs/{date}_{mod}.log".format(date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), mod=c.module)
         log_file = f"{config.log_dir}/holo_{config.module}.log"
         logging.basicConfig(
             # filename=log_file,
