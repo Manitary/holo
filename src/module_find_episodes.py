@@ -1,17 +1,17 @@
 import logging
 from typing import Any
 
-import reddit
 import services
 from config import Config
 from data.database import DatabaseDatabase
 from data.models import Episode, Show, Stream
+from reddit import RedditHolo, get_shortlink_from_id
 
 logger = logging.getLogger(__name__)
 
 
 def main(config: Config, db: DatabaseDatabase) -> None:
-    reddit.init_reddit(config)
+    reddit_holo = RedditHolo(config=config)
 
     has_new_episode: list[Show] = []
 
@@ -49,7 +49,9 @@ def main(config: Config, db: DatabaseDatabase) -> None:
                     continue
 
                 for episode in sorted(episodes, key=lambda e: e.number):
-                    if _process_new_episode(config, db, show, stream, episode):
+                    if _process_new_episode(
+                        config, db, show, stream, episode, reddit_agent=reddit_holo
+                    ):
                         has_new_episode.append(show)
         except IOError:
             logger.error("Error while getting shows on service %s", service)
@@ -93,7 +95,9 @@ def main(config: Config, db: DatabaseDatabase) -> None:
                     continue
 
                 for episode in sorted(episodes, key=lambda e: e.number):
-                    if _process_new_episode(config, db, show, stream, episode):
+                    if _process_new_episode(
+                        config, db, show, stream, episode, reddit_holo
+                    ):
                         has_new_episode.append(show)
         except IOError:
             logger.error("Error while getting shows on service %s", service)
@@ -109,7 +113,12 @@ def main(config: Config, db: DatabaseDatabase) -> None:
 
 
 def _process_new_episode(
-    config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode: Episode
+    config: Config,
+    db: DatabaseDatabase,
+    show: Show,
+    stream: Stream,
+    episode: Episode,
+    reddit_agent: RedditHolo,
 ) -> bool:
     logger.debug("Processing new episode")
     logger.debug("%s", episode)
@@ -156,7 +165,12 @@ def _process_new_episode(
     if already_seen or episode_number_gap:
         return False
     post_url = _create_reddit_post(
-        config, db, show, stream, int_episode, submit=not config.debug
+        config,
+        db,
+        show,
+        stream,
+        int_episode,
+        reddit_agent=None if config.debug else reddit_agent,
     )
     logger.info("  Post URL: %s", post_url)
     if not post_url:
@@ -180,8 +194,8 @@ def _process_new_episode(
             show,
             stream,
             editing_episode,
-            editing_episode.link,
-            submit=not config.debug,
+            editing_episode.link or "",
+            reddit_agent=None if config.debug else reddit_agent,
         )
     return True
 
@@ -192,19 +206,19 @@ def _create_reddit_post(
     show: Show,
     stream: Stream,
     episode: Episode,
-    submit: bool = True,
+    reddit_agent: RedditHolo | None = None,
 ) -> str | None:
     display_episode = stream.to_display_episode(episode)
 
     title, body = _create_post_contents(config, db, show, stream, display_episode)
-    if not submit:
+    if not reddit_agent:
         return None
-    new_post = reddit.submit_text_post(config.subreddit, title, body)
+    new_post = reddit_agent.submit_text_post(title, body)
     if not new_post:
         logger.error("Failed to submit post")
         return None
     logger.debug("Post successful")
-    return reddit.get_shortlink_from_id(new_post.id)
+    return get_shortlink_from_id(new_post.id)
 
 
 def _edit_reddit_post(
@@ -214,15 +228,15 @@ def _edit_reddit_post(
     stream: Stream,
     episode: Episode,
     url: str,
-    submit: bool = True,
+    reddit_agent: RedditHolo | None = None,
 ) -> None:
     display_episode = stream.to_display_episode(episode)
 
     _, body = _create_post_contents(
         config, db, show, stream, display_episode, quiet=True
     )
-    if submit:
-        reddit.edit_text_post(url, body)
+    if reddit_agent:
+        reddit_agent.edit_text_post(url, body)
 
 
 def _create_post_contents(
