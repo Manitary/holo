@@ -927,7 +927,7 @@ class DatabaseDatabase:
             "SELECT score FROM Scores WHERE show=? AND episode=?",
             (show.id, episode.number),
         )
-        scores = [s[0] for s in self.q.fetchall()]
+        scores = [s["score"] for s in self.q.fetchall()]
         if not scores:
             return None
         score = sum(scores) / len(scores)
