@@ -4,7 +4,7 @@
 import logging
 import re
 from typing import Any
-from xml.etree.ElementTree import XMLParser
+from xml.etree.ElementTree import Element, XMLParser
 
 from bs4 import BeautifulSoup
 
@@ -197,15 +197,15 @@ class InfoHandler(AbstractInfoHandler):
     # Private
 
     def _mal_request(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
-        return self.request(url, html=True, **kwargs)
+        return self.request_html(url, **kwargs)
 
-    def _mal_api_request(self, url: str, **kwargs: Any) -> XMLParser | None:
+    def _mal_api_request(self, url: str, **kwargs: Any) -> Element | None:
         if "username" not in self.config or "password" not in self.config:
             logger.error("Username and password required for MAL requests")
             return None
 
         auth = (self.config["username"], self.config["password"])
-        return self.request(url, auth=auth, xml=True, **kwargs)
+        return self.request_xml(url, auth=auth, **kwargs)
 
 
 def _convert_type(mal_type):

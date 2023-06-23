@@ -118,5 +118,5 @@ class InfoHandler(AbstractInfoHandler):
         # return UnprocessedShow(self.key, id, None, names, ShowType.UNKNOWN, 0, False)
         return None
 
-    def _site_request(self, url: str, **kwargs: Any):
-        return self.request(url, json=True, **kwargs)
+    def _site_request(self, url: str, **kwargs: Any) -> Any:
+        return self.request_json(url, **kwargs)

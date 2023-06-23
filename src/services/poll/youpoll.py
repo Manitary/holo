@@ -78,7 +78,7 @@ class PollHandler(AbstractPollHandler):
             "Getting score for show %s / episode %d", poll.show_id, poll.episode
         )
         try:
-            response = self.request(self.get_results_link(poll), html=True)
+            response = self.request_html(self.get_results_link(poll))
         except Exception:
             logger.error(
                 "Couldn't get scores for poll %s (query error)",

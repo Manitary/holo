@@ -62,5 +62,5 @@ class InfoHandler(AbstractInfoHandler):
     def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
         return None
 
-    def _site_request(self, url: str, **kwargs: Any) -> BeautifulSoup:
-        return self.request(url, html=True, **kwargs)
+    def _site_request(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
+        return self.request_html(url, **kwargs)

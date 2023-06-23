@@ -97,40 +97,33 @@ def rate_limit(wait_length: float) -> Callable[[Callable[..., T]], Callable[...,
 
 class Requestable:
     rate_limit_wait = 1
+    default_timeout = 10
 
     @lru_cache(maxsize=100)
     @rate_limit(rate_limit_wait)
     def request(
         self,
         url: str,
-        json: bool = False,
-        xml: bool = False,
-        html: bool = False,
-        rss: bool = False,
-        proxy: list[str | int] | None = None,
+        proxy: tuple[str, int] | None = None,
         useragent: str = "",
         auth: tuple[str, str] | None = None,
-        timeout: int = 10,
-    ):
+        timeout: int = default_timeout,
+    ) -> requests.Response | None:
         """
         Sends a request to the service.
-        :param url: The request URL
-        :param json: If True, return the response as parsed JSON
-        :param xml: If True, return the response as parsed XML
-        :param html: If True, return the response as parsed HTML
         :param proxy: Optional proxy, a tuple of address and port
         :param useragent: Ideally should always be set
         :param auth: Tuple of username and password to use for HTTP basic auth
         :param timeout: Amount of time to wait for a response in seconds
         :return: The response if successful, otherwise None
         """
+        proxies: dict[str, str] | None = None
         if proxy:
-            if len(proxy) != 2:
-                logger.warning("Invalid number of proxy values, need address and port")
-                proxy = None
-            else:
-                proxy: dict[str, str] | None = {"http": f"http://{proxy[0]}:{proxy[1]}"}
-                logger.debug("Using proxy: %s", proxy)
+            try:
+                proxies = {"http": f"http://{proxy[0]}:{proxy[1]}"}
+                logger.debug("Using proxy: %s", proxies)
+            except Exception:
+                logger.warning("Invalid proxy, need address and port")
 
         headers = {"User-Agent": useragent}
         logger.debug("Sending request")
@@ -138,7 +131,7 @@ class Requestable:
         logger.debug("  Headers=%s", headers)
         try:
             response = requests.get(
-                url, headers=headers, proxies=proxy, auth=auth, timeout=timeout
+                url, headers=headers, proxies=proxies, auth=auth, timeout=timeout
             )
         except requests.exceptions.Timeout:
             logger.error("  Response timed out")
@@ -152,31 +145,53 @@ class Requestable:
         if (
             not response.text
         ):  # Some sites *coughfunimationcough* may return successful empty responses for new shows
-            logger.error("Empty response (probably funimation)")
+            logger.error("Empty response (probably Funimation)")
             return None
 
-        if json:
-            logger.debug("Response returning as JSON")
-            try:
-                return response.json()
-            except JSONDecodeError as e:
-                logger.error("Response is not JSON", exc_info=e)
-                return None
-        if xml:
-            logger.debug("Response returning as XML")
-            # TODO: error checking
-            raw_entry = xml_parser.fromstring(response.text)
-            # entry = dict((attr.tag, attr.text) for attr in raw_entry)
-            return raw_entry
-        if html:
-            logger.debug("Returning response as HTML")
-            soup = BeautifulSoup(response.text, "html.parser")
-            return soup
-        if rss:
-            logger.debug("Returning response as RSS feed")
-            rss = feedparser.parse(response.text)
-            return rss
+        return response
+
+    def request_json(self, url: str, **kwargs: Any) -> Any:
+        response = self.request(url=url, **kwargs)
+        logger.debug("Response returning as JSON")
+        if not response:
+            return None
+        try:
+            return response.json()
+        except JSONDecodeError as e:
+            logger.error("Response is not JSON", exc_info=e)
+            return None
+
+    def request_xml(self, url: str, **kwargs: Any) -> xml_parser.Element | None:
+        response = self.request(url=url, **kwargs)
+        logger.debug("Response returning as XML")
+        if not response:
+            return None
+        # TODO: error checking
+        raw_entry = xml_parser.fromstring(response.text)
+        # entry = dict((attr.tag, attr.text) for attr in raw_entry)
+        return raw_entry
+
+    def request_html(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
+        response = self.request(url=url, **kwargs)
+        logger.debug("Returning response as HTML")
+        if not response:
+            return None
+        soup = BeautifulSoup(response.text, "html.parser")
+        return soup
+
+    def request_rss(self, url: str, **kwargs: Any) -> feedparser.FeedParserDict | None:
+        response = self.request(url=url, **kwargs)
+        logger.debug("Returning response as RSS feed")
+        if not response:
+            return None
+        rss: feedparser.FeedParserDict = feedparser.parse(response.text)
+        return rss
+
+    def request_text(self, url: str, **kwargs: Any) -> str | None:
+        response = self.request(url=url, **kwargs)
         logger.debug("Response returning as text")
+        if not response:
+            return None
         return response.text
 
 

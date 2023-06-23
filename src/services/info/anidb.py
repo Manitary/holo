@@ -111,7 +111,7 @@ class InfoHandler(AbstractInfoHandler):
         return None
 
     def _site_request(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
-        return self.request(url, html=True, **kwargs)
+        return self.request_html(url, **kwargs)
 
 
 def _convert_show_type(type_str: str) -> ShowType:

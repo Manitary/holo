@@ -114,7 +114,7 @@ class ServiceHandler(AbstractServiceHandler):
         excludes = self.config.get("excluded_users", "").replace(" ", "")
         url = self._recent_list.format(domain=domain, filter=filter_, excludes=excludes)
 
-        response = self.request(url, rss=True, **kwargs)
+        response = self.request_rss(url, **kwargs)
         if not response:
             logger.error("Cannot get latest show for Nyaa")
             return []
@@ -148,7 +148,7 @@ class ServiceHandler(AbstractServiceHandler):
         url = self._search_base.format(
             domain=domain, filter=filter_, excludes=excludes, q=query
         )
-        response = self.request(url, rss=True, **kwargs)
+        response = self.request_rss(url, **kwargs)
         if not response:
             logger.error("Cannot get latest show for Nyaa/%s", show_key)
             return []

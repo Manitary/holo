@@ -46,7 +46,7 @@ class ServiceHandler(AbstractServiceHandler):
         url = self._get_feed_url(show_key)
 
         # Send request
-        response: BeautifulSoup | None = self.request(url, html=True, **kwargs)
+        response: BeautifulSoup | None = self.request_html(url, **kwargs)
         if not response:
             logger.error("Cannot get show page for HiDive/%s", show_key)
             return []
@@ -68,7 +68,10 @@ class ServiceHandler(AbstractServiceHandler):
         logger.info("Getting stream info for HiDive/%s", stream.show_key)
 
         url = self._get_feed_url(stream.show_key)
-        response: BeautifulSoup | None = self.request(url, html=True, **kwargs)
+        if not url:
+            logger.error("Cannot get url from show key")
+            return None
+        response: BeautifulSoup | None = self.request_html(url, **kwargs)
         if not response:
             logger.error("Cannot get feed")
             return None

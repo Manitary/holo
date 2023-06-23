@@ -46,7 +46,7 @@ class ServiceHandler(AbstractServiceHandler):
             logger.error("Cannot get feed url for %s/%s", self.name, show_key)
 
         # Request channel information
-        response = self.request(url, json=True, **kwargs)
+        response = self.request_json(url, **kwargs)
         if not response:
             logger.error("Cannot get episode feed for %s/%s", self.name, show_key)
             return []
@@ -62,7 +62,7 @@ class ServiceHandler(AbstractServiceHandler):
         url = self._get_videos_url(video_ids)
 
         # Request videos information
-        response = self.request(url, json=True, **kwargs)
+        response = self.request_json(url, **kwargs)
         if not response:
             logger.error("Cannot get video information for %s/%s", self.name, show_key)
             return []
