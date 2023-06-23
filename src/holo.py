@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 import argparse
-from dataclasses import dataclass
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from time import time
 from typing import Type
 
-import config as config_loader
 import services
+from config import Config, InvalidConfigException
 from data import database
 
 logger = logging.getLogger(__name__)
@@ -20,15 +20,9 @@ if sys.version_info[0] != 3 or sys.version_info[1] < 5:
     sys.exit(1)
 
 # Metadata
-name = "Holo"
-description = "episode discussion bot"
-version = "0.1.4"
-
-# Ensure proper files can be access if running with cron
-os.chdir(str(Path(__file__).parent.parent))
-
-
-# Do the things
+NAME = "Holo"
+DESCRIPTION = "episode discussion bot"
+VERSION = "0.1.4"
 
 
 @dataclass
@@ -44,7 +38,7 @@ class ParserArguments:
     output: str
 
 
-def main(config: config_loader.Config, args: Type[ParserArguments]) -> None:
+def holo(config: Config, args: Type[ParserArguments]) -> None:
     # Set things up
     db = database.living_in(config.database)
     if not db:
@@ -111,9 +105,8 @@ def main(config: config_loader.Config, args: Type[ParserArguments]) -> None:
     db.close()
 
 
-if __name__ == "__main__":
-    # Parse args
-    parser = argparse.ArgumentParser(description=f"{name}, {description}")
+def create_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=f"{NAME}, {DESCRIPTION}")
     parser.add_argument(
         "--no-input",
         dest="no_input",
@@ -124,40 +117,35 @@ if __name__ == "__main__":
         "-m",
         "--module",
         dest="module",
-        nargs=1,
         choices=["setup", "edit", "episode", "update", "find", "create", "batch"],
-        default=["episode"],
+        default="episode",
         help="runs the specified module",
     )
     parser.add_argument(
         "-c",
         "--config",
         dest="config_file",
-        nargs=1,
-        default=["config.ini"],
+        default="config.ini",
         help="use or create the specified database location",
     )
     parser.add_argument(
         "-d",
         "--database",
         dest="db_name",
-        nargs=1,
-        default=None,
+        default="",
         help="use or create the specified database location",
     )
     parser.add_argument(
         "-s",
         "--subreddit",
         dest="subreddit",
-        nargs=1,
-        default=None,
+        default="",
         help="set the subreddit on which to make posts",
     )
     parser.add_argument(
         "-o",
         "--output",
         dest="output",
-        nargs=1,
         default="db",
         help="set the output mode (db or yaml) if supported",
     )
@@ -165,48 +153,54 @@ if __name__ == "__main__":
         "-L",
         "--log-dir",
         dest="log_dir",
-        nargs=1,
-        default=["logs"],
+        default="logs",
         help="set the log directory",
     )
     parser.add_argument(
         "-v",
         "--version",
         action="version",
-        version=f"{name} v{version}, {description}",
+        version=f"{NAME} v{VERSION}, {DESCRIPTION}",
     )
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("extra", nargs="*")
-    args = parser.parse_args(namespace=ParserArguments)
+    return parser
+
+
+def main() -> None:
+    # Ensure proper files can be access if running with cron
+    os.chdir(str(Path(__file__).parent.parent))
+
+    # Parse args
+    args = create_parser().parse_args(namespace=ParserArguments)
 
     # Load config file
     config_file = (
-        os.environ["HOLO_CONFIG"]
-        if "HOLO_CONFIG" in os.environ
-        else args.config_file[0]
+        os.environ["HOLO_CONFIG"] if "HOLO_CONFIG" in os.environ else args.config_file
     )
-    c = config_loader.from_file(config_file)
-    if c is None:
+    try:
+        config = Config.from_file(config_file)
+    except InvalidConfigException:
         print("Cannot start without a valid configuration file")
         sys.exit(2)
 
     # Override config with args
-    c.debug |= args.debug
-    c.module = args.module[0]
-    c.log_dir = args.log_dir[0]
-    if args.db_name is not None:
-        c.database = args.db_name[0]
-    if args.subreddit is not None:
-        c.subreddit = args.subreddit[0]
+    config.debug |= args.debug
+    config.module = args.module
+    config.log_dir = args.log_dir
+    if args.db_name:
+        config.database = args.db_name
+    if args.subreddit:
+        config.subreddit = args.subreddit
 
     # Start
     use_log = args.no_input
     if use_log:
-        os.makedirs(c.log_dir, exist_ok=True)
+        os.makedirs(config.log_dir, exist_ok=True)
 
         # from datetime import datetime
         # log_file = "logs/{date}_{mod}.log".format(date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), mod=c.module)
-        log_file = f"{c.log_dir}/holo_{c.module}.log"
+        log_file = f"{config.log_dir}/holo_{config.module}.log"
         logging.basicConfig(
             # filename=log_file,
             handlers=[
@@ -216,26 +210,25 @@ if __name__ == "__main__":
             ],
             format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.DEBUG if c.debug else logging.INFO,
+            level=logging.DEBUG if config.debug else logging.INFO,
         )
     else:
         logging.basicConfig(
             format="%(levelname)s | %(message)s",
-            level=logging.DEBUG if c.debug else logging.INFO,
+            level=logging.DEBUG if config.debug else logging.INFO,
         )
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("praw-script-oauth").setLevel(logging.WARNING)
 
     if use_log:
-        logger.info("------------------------------------------------------------")
-    err = config_loader.validate(c)
-    if err:
-        logger.warning("Configuration state invalid: %s", err)
-
-    if c.debug:
+        logger.info("-" * 60)
+    if not config.is_valid:
+        logging.warning("Configuration state invalid")
+    if config.debug:
         logger.info("DEBUG MODE ENABLED")
+
     start_time = time()
-    main(config=c, args=args)
+    holo(config=config, args=args)
     end_time = time()
 
     time_diff = end_time - start_time
@@ -243,4 +236,8 @@ if __name__ == "__main__":
     logger.info("Run time: %.6f seconds", time_diff)
 
     if use_log:
-        logger.info("------------------------------------------------------------\n")
+        logger.info("%s%s", "-" * 60, "\n")
+
+
+if __name__ == "__main__":
+    main()
