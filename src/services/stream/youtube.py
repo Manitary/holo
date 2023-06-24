@@ -14,7 +14,7 @@ class ServiceHandler(AbstractServiceHandler):
     _playlist_api_query = "https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId={id}&key={key}"
     _videos_api_query = "https://youtube.googleapis.com/youtube/v3/videos?part=status&part=snippet&hl=en&id={id}&key={key}"
     _channel_url = "https://www.youtube.com/playlist?list={id}"
-    _channel_re = re.compile(r"youtube.com/playlist\\?list=([\w-]+)", re.I)
+    _channel_re = re.compile(r"youtube.com/playlist\?list=([\w-]+)", re.I)
 
     def __init__(self) -> None:
         super().__init__("youtube", "Youtube", False)
@@ -44,6 +44,7 @@ class ServiceHandler(AbstractServiceHandler):
         url = self._get_feed_url(show_key)
         if not url:
             logger.error("Cannot get feed url for %s/%s", self.name, show_key)
+            return []
 
         # Request channel information
         response = self.request_json(url, **kwargs)
@@ -60,6 +61,9 @@ class ServiceHandler(AbstractServiceHandler):
 
         video_ids = [item["contentDetails"]["videoId"] for item in feed]
         url = self._get_videos_url(video_ids)
+        if not url:
+            logger.warning("url not produced")
+            return []
 
         # Request videos information
         response = self.request_json(url, **kwargs)
