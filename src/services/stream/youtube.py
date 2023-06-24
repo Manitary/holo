@@ -26,7 +26,7 @@ class ServiceHandler(AbstractServiceHandler):
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Extract valid episodes from feed and digest
-        episodes = []
+        episodes: list[Episode] = []
         for episode_data in episode_datas:
             if _is_valid_episode(episode_data, stream.show_key):
                 try:

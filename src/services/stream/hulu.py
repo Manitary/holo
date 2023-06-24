@@ -104,7 +104,7 @@ class ServiceHandler(AbstractServiceHandler):
     def __init__(self) -> None:
         super().__init__(key="hulu", name="Hulu", is_generic=False)
 
-    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> Iterable[Episode]:
+    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
         logger.info("Getting live episodes for Hulu/%s", stream.show_key)
         url = self.get_stream_link(stream=stream)
         if not url:

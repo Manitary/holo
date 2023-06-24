@@ -32,7 +32,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
             )
             logger.info(
                 "%d episodes for active shows on service %s",
-                len(recent_episodes),
+                sum(map(len, recent_episodes.values())),
                 service,
             )
 

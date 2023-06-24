@@ -251,7 +251,7 @@ class AbstractServiceHandler(ABC, Requestable):
 
     def get_recent_episodes(
         self, streams: Iterable[Stream], **kwargs: Any
-    ) -> dict[Stream, Iterable[Episode]]:
+    ) -> dict[Stream, list[Episode]]:
         """
         Gets all recently released episode on the service, for the given streams.
         What counts as recent is decided by the service handler, but all newly released episodes
@@ -262,7 +262,7 @@ class AbstractServiceHandler(ABC, Requestable):
         :return: A dict in which each key is one of the requested streams
                  and the value is a list of newly released episodes for the stream
         """
-        return {stream: self.get_all_episodes(stream, **kwargs) for stream in streams}
+        return {stream: list(self.get_all_episodes(stream, **kwargs)) for stream in streams}
 
     @abstractmethod
     def get_stream_link(self, stream: Stream) -> str | None:
