@@ -124,7 +124,7 @@ class ServiceHandler(AbstractServiceHandler):
                 if not url_match:
                     logger.error("Failed to parse show URL: %s", url)
                     continue
-                key = url_match.group(1)
+                key: str = url_match.group(1)
                 logger.debug("  Key: %s", key)
                 remote_offset, display_offset = self._get_stream_info(key)
 

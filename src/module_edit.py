@@ -36,7 +36,7 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
     for doc in parsed:
         name = doc["title"]
         name_en = doc.get("title_en", "")
-        stype = str_to_showtype(doc.get("type", "tv"))  # convert to enum?
+        stype = str_to_showtype(doc.get("type", "tv"))
         length = doc.get("length", 0)
         has_source = doc.get("has_source", False)
         is_nsfw = doc.get("is_nsfw", False)

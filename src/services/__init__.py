@@ -235,7 +235,7 @@ class AbstractServiceHandler(ABC, Requestable):
             datetime.utcnow().date()
         )  # NOTE: Uses local time instead of UTC, but probably doesn't matter too much on a day scale
         return filter(
-            lambda e: e.date.date() <= today, episodes
+            lambda e: e.date and e.date.date() <= today, episodes
         )  # Update 9/14/16: It actually matters.
 
     @abstractmethod
