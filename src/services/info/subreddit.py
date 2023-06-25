@@ -16,7 +16,7 @@ class InfoHandler(AbstractInfoHandler):
     _show_link_matcher = r"/r/(\w+)"
 
     def __init__(self) -> None:
-        super().__init__("subreddit", "/r/")
+        super().__init__(key="subreddit", name="/r/")
 
     def get_link(self, link: Link | None) -> str | None:
         if not link:

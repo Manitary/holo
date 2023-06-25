@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import importlib
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from functools import lru_cache, wraps
 from json import JSONDecodeError
 from time import perf_counter, sleep
 from types import ModuleType
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Iterable, Type, TypeVar
 from xml.etree import ElementTree as xml_parser
 
 import feedparser
@@ -30,6 +33,48 @@ from data.models import (
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+
+class ServiceTypes(StrEnum):
+    STREAM = "ServiceHandler"
+    INFO = "InfoHandler"
+    POLL = "PollHandler"
+
+
+@dataclass
+class Handlers:
+    streams: dict[str, AbstractServiceHandler] = field(default_factory=dict)
+    infos: dict[str, AbstractInfoHandler] = field(default_factory=dict)
+    polls: dict[str, AbstractPollHandler] = field(default_factory=dict)
+
+    def __init__(self, config: Config) -> None:
+        for service_type in ServiceTypes:
+            name = str(service_type.name).lower()
+            self.__setattr__(
+                f"{name}s", import_services(name, str(service_type), config)
+            )
+
+
+def import_services(
+    package_name: str, class_name: str, config: Config
+) -> dict[str, BaseHandler]:
+    package = importlib.import_module(f".{package_name}", package=__name__)
+    services: dict[str, BaseHandler] = {}
+    for name in package.__all__:
+        module = importlib.import_module(f".{name}", package=package.__name__)
+        if not hasattr(module, class_name):
+            logger.warning(
+                "Service module %s.%s has no handler %s",
+                package.__name__,
+                module.__name__,
+                class_name,
+            )
+            continue
+        handler: BaseHandler = getattr(module, class_name)()
+        handler.set_config(config=config.services.get(handler.key, {}))
+        services[handler.key] = handler
+    return services
+
 
 # Common
 
@@ -54,8 +99,6 @@ def _make_service(service: AbstractServiceHandler) -> AbstractServiceHandler:
 
 
 def import_all_services(pkg: ModuleType, class_name: str) -> dict[str, Any]:
-    import importlib
-
     services: dict[str, AbstractServiceHandler] = {}
     for name in pkg.__all__:
         module = importlib.import_module("." + name, package=pkg.__name__)
@@ -66,7 +109,6 @@ def import_all_services(pkg: ModuleType, class_name: str) -> dict[str, Any]:
         handler = getattr(module, class_name)()
         services[handler.key] = _make_service(handler)
         del module
-    del importlib
     return services
 
 
@@ -195,20 +237,27 @@ class Requestable:
         return response.text
 
 
+@dataclass(kw_only=True)
+class BaseHandler:
+    key: str
+    config: dict[str, str] = field(default_factory=dict)
+
+    def set_config(self, config: dict[str, str]) -> None:
+        self.config = config
+
+
 ###################
 # Service handler #
 ###################
 
 
-class AbstractServiceHandler(ABC, Requestable):
-    def __init__(self, key: str, name: str, is_generic: int) -> None:
-        self.key = key
+class AbstractServiceHandler(BaseHandler, Requestable, ABC):
+    def __init__(
+        self, name: str, is_generic: int | bool, *args: Any, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
         self.name = name
         self.is_generic = is_generic
-        self.config: dict[str, str] = {}
-
-    def set_config(self, config: dict[str, str]) -> None:
-        self.config = config
 
     def get_latest_episode(self, stream: Stream, **kwargs: Any) -> Episode | None:
         """
@@ -262,7 +311,9 @@ class AbstractServiceHandler(ABC, Requestable):
         :return: A dict in which each key is one of the requested streams
                  and the value is a list of newly released episodes for the stream
         """
-        return {stream: list(self.get_all_episodes(stream, **kwargs)) for stream in streams}
+        return {
+            stream: list(self.get_all_episodes(stream, **kwargs)) for stream in streams
+        }
 
     @abstractmethod
     def get_stream_link(self, stream: Stream) -> str | None:
@@ -361,15 +412,11 @@ def get_generic_service_handlers(
 ################
 
 
-class AbstractInfoHandler(ABC, Requestable):
-    def __init__(self, key: str, name: str) -> None:
-        self.key = key
+class AbstractInfoHandler(BaseHandler, Requestable, ABC):
+    def __init__(self, name: str, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
         self.name = name
         self.config: dict[str, str] = {}
-
-    def set_config(self, config: dict[str, str]) -> None:
-        # logger.debug("Setting config of %s to %s", self.key, config)
-        self.config = config
 
     @abstractmethod
     def get_link(self, link: Link) -> str | None:
@@ -486,14 +533,7 @@ def get_link_handler(
 ################
 
 
-class AbstractPollHandler(ABC, Requestable):
-    def __init__(self, key: str) -> None:
-        self.key = key
-        self.config: dict[str, str] = {}
-
-    def set_config(self, config: dict[str, str]) -> None:
-        self.config = config
-
+class AbstractPollHandler(BaseHandler, Requestable, ABC):
     @abstractmethod
     def create_poll(self, title: str, submit: bool, **kwargs: Any) -> str | None:
         """

@@ -17,7 +17,7 @@ class ServiceHandler(AbstractServiceHandler):
     _show_re = re.compile("hidive.com/tv/([\w-]+)", re.I)
 
     def __init__(self):
-        super().__init__("hidive", "HIDIVE", False)
+        super().__init__(key="hidive", name="HIDIVE", is_generic=False)
 
     # Episode finding
 

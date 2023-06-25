@@ -46,6 +46,7 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
         return
 
     services.setup_services(config)
+    handlers = services.Handlers(config)
 
     # Run the requested module
     try:
@@ -54,9 +55,9 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
             logger.info("Setting up database")
             db.setup_tables()
             logger.info("Registering services")
-            db.register_services(services.get_service_handlers())
-            db.register_link_sites(services.get_link_handlers())
-            db.register_poll_sites(services.get_poll_handlers())
+            db.register_services(handlers.streams)
+            db.register_link_sites(handlers.infos)
+            db.register_poll_sites(handlers.polls)
         elif config.module == "edit":
             logger.info("Editing database")
             import module_edit as m

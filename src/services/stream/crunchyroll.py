@@ -19,7 +19,7 @@ class ServiceHandler(AbstractServiceHandler):
     _season_url = r"http://crunchyroll.com/lineup"
 
     def __init__(self) -> None:
-        super().__init__("crunchyroll", "Crunchyroll", False)
+        super().__init__(key="crunchyroll", name="Crunchyroll", is_generic=False)
 
     # Episode finding
 

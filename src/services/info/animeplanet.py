@@ -16,7 +16,7 @@ class InfoHandler(AbstractInfoHandler):
     )
 
     def __init__(self) -> None:
-        super().__init__("animeplanet", "Anime-Planet")
+        super().__init__(key="animeplanet", name="Anime-Planet")
 
     def get_link(self, link: Link | None) -> str | None:
         if not link:

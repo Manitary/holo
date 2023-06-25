@@ -19,7 +19,7 @@ class InfoHandler(AbstractInfoHandler):
     _api_base = "https:///kitsu.io/api/edge/anime"
 
     def __init__(self) -> None:
-        super().__init__("kitsu", "Kitsu")
+        super().__init__(key="kitsu", name="Kitsu")
 
     def get_link(self, link: Link | None) -> str | None:
         if not link:

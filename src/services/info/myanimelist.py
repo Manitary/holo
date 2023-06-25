@@ -23,7 +23,7 @@ class InfoHandler(AbstractInfoHandler):
     _api_search_base = "https://myanimelist.net/api/anime/search.xml?q={q}"
 
     def __init__(self) -> None:
-        super().__init__("mal", "MyAnimeList")
+        super().__init__(key="mal", name="MyAnimeList")
 
     def get_link(self, link: Link | None) -> str | None:
         if not link:

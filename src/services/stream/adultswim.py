@@ -18,7 +18,7 @@ class ServiceHandler(AbstractServiceHandler):
     _show_re = re.compile(r"adultswim.com/videos/([\w-]+)", re.I)
 
     def __init__(self) -> None:
-        super().__init__("adultswim", "Adult Swim", False)
+        super().__init__(key="adultswim", name="Adult Swim", is_generic=False)
 
     # Episode finding
 

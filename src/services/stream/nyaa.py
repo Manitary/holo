@@ -21,7 +21,7 @@ class ServiceHandler(AbstractServiceHandler):
     _recent_list = "https://{domain}/?page=rss&c=1_2&f={filter}&exclude={excludes}"
 
     def __init__(self) -> None:
-        super().__init__("nyaa", "Nyaa", True)
+        super().__init__(key="nyaa", name="Nyaa", is_generic=True)
 
     # Episode finding
 
