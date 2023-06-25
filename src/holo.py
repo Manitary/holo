@@ -71,9 +71,9 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
             logger.info("Finding new shows")
             import module_find_shows as m
 
-            if args.output[0] == "db":
+            if args.output == "db":
                 m.main(config=config, db=db, output_yaml=False)
-            elif args.output[0] == "yaml":
+            elif args.output == "yaml":
                 f = args.extra[0] if len(args.extra) > 0 else "find_output.yaml"
                 m.main(config=config, db=db, output_yaml=True, output_file=f)
         elif config.module == "update":
@@ -146,6 +146,7 @@ def create_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         dest="output",
+        choices=["db", "yaml"],
         default="db",
         help="set the output mode (db or yaml) if supported",
     )
