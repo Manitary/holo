@@ -9,9 +9,9 @@ from pathlib import Path
 from time import time
 from typing import Type
 
-import services
 from config import Config, InvalidConfigException
 from data import database
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,7 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
         logger.error("Cannot continue running without a database")
         return
 
-    services.setup_services(config)
-    handlers = services.Handlers(config)
+    handlers = Handlers(config)
 
     # Run the requested module
     try:
@@ -62,31 +61,43 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
             logger.info("Editing database")
             import module_edit as m
 
-            m.main(db=db, edit_file=args.extra[0])
+            m.main(db=db, edit_file=args.extra[0], handlers=handlers)
         elif config.module == "episode":
             logger.info("Finding new episodes")
             import module_find_episodes as m
 
-            m.main(config, db)
+            m.main(config=config, db=db, handlers=handlers)
         elif config.module == "find":
             logger.info("Finding new shows")
             import module_find_shows as m
 
             if args.output == "db":
-                m.main(config=config, db=db, output_yaml=False)
+                m.main(config=config, db=db, handlers=handlers, output_yaml=False)
             elif args.output == "yaml":
                 f = args.extra[0] if len(args.extra) > 0 else "find_output.yaml"
-                m.main(config=config, db=db, output_yaml=True, output_file=f)
+                m.main(
+                    config=config,
+                    db=db,
+                    handlers=handlers,
+                    output_yaml=True,
+                    output_file=f,
+                )
         elif config.module == "update":
             logger.info("Updating shows")
             import module_update_shows as m
 
-            m.main(config=config, db=db)
+            m.main(config=config, db=db, handlers=handlers)
         elif config.module == "create":
             logger.info("Creating new thread")
             import module_create_threads as m
 
-            m.main(config=config, db=db, show_name=args.extra[0], episode=args.extra[1])
+            m.main(
+                config=config,
+                db=db,
+                handlers=handlers,
+                show_name=args.extra[0],
+                episode=args.extra[1],
+            )
         elif config.module == "batch":
             logger.info("Batch creating threads")
             import module_batch_create as m
@@ -94,6 +105,7 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
             m.main(
                 config=config,
                 db=db,
+                handlers=handlers,
                 show_name=args.extra[0],
                 episode_count=args.extra[1],
             )

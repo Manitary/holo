@@ -4,10 +4,10 @@ from typing import Generator
 
 import yaml
 
-import services
 from config import Config
 from data.database import DatabaseDatabase
 from data.models import ShowType, UnprocessedShow, UnprocessedStream
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 def main(
     config: Config,
     db: DatabaseDatabase,
+    handlers: Handlers,
     output_yaml: bool,
     output_file: str | None = None,
 ) -> None:
     if output_yaml and output_file:
         logger.debug("Using output file: %s", output_file)
-        create_season_config(config, db, output_file)
+        create_season_config(config, db, handlers, output_file)
     # check_new_shows(config, db, update_db=not config.debug)
     # check_new_shows(config, db)
     # match_show_streams(config, db, update_db=not config.debug)
@@ -39,27 +40,28 @@ yaml.add_representer(OrderedDict, represent_dict_order)
 
 
 def create_season_config(
-    config: Config, db: DatabaseDatabase, output_file: str
+    config: Config, db: DatabaseDatabase, handlers: Handlers, output_file: str
 ) -> None:
     logger.info("Checking for new shows")
-    shows = _get_primary_source_shows(config)
+    shows = _get_primary_source_shows(config, handlers)
 
     logger.debug("Outputting new shows")
     with open(output_file, "w", encoding="utf-8") as f:
         yaml.dump_all(shows, f, explicit_start=True, default_flow_style=False)
 
 
-def _get_primary_source_shows(config: Config):
+def _get_primary_source_shows(config: Config, handlers: Handlers):
     logger.debug("Retrieving primary show list")
-    link_handlers = services.get_link_handlers()
-    service_handlers = services.get_service_handlers()
+    link_handlers = handlers.infos
+    service_handlers = handlers.streams
 
     site_key = config.discovery_primary_source
     if site_key not in link_handlers:
         logger.warning("Primary source site handler for %s not installed", site_key)
         return
 
-    site_handler = link_handlers.get(site_key)
+    site_handler = link_handlers[site_key]
+
     shows = []
     for raw_show in site_handler.get_seasonal_shows(useragent=config.useragent):
         if (
@@ -111,10 +113,10 @@ def _get_primary_source_shows(config: Config):
 
 
 def check_new_shows(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    config: Config, db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
 ) -> None:
     logger.info("Checking for new shows")
-    for raw_show in _get_new_season_shows(config, db):
+    for raw_show in _get_new_season_shows(config, db, handlers):
         if (
             raw_show.show_type is not ShowType.UNKNOWN
             and raw_show.show_type not in config.new_show_types
@@ -157,17 +159,17 @@ def check_new_shows(
 
 
 def _get_new_season_shows(
-    config: Config, db: DatabaseDatabase
+    config: Config, db: DatabaseDatabase, handlers: Handlers
 ) -> Generator[UnprocessedShow, None, None]:
     # Only checks link sites because their names are preferred
     # Names on stream sites are unpredictable and many times in english
-    handlers = services.get_link_handlers()
+    link_handlers = handlers.infos
     for site in db.get_link_sites():
-        if site.key not in handlers:
+        if site.key not in link_handlers:
             logger.warning("Link site handler for %s not installed", site.key)
             continue
 
-        handler = handlers.get(site.key)
+        handler = link_handlers.get(site.key)
         if not handler:
             continue
         logger.info("  Checking %s (%s)", handler.name, handler.key)
@@ -180,10 +182,10 @@ def _get_new_season_shows(
 
 
 def check_new_streams(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    config: Config, db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
 ) -> None:
     logger.info("Checking for new streams")
-    for raw_stream in _get_new_season_streams(config, db):
+    for raw_stream in _get_new_season_streams(config, db, handlers):
         if db.has_stream(raw_stream.service_key, raw_stream.show_key):
             logger.debug(
                 "  Stream already exists for %s on %s",
@@ -215,16 +217,16 @@ def check_new_streams(
 
 
 def _get_new_season_streams(
-    config: Config, db: DatabaseDatabase
+    config: Config, db: DatabaseDatabase, handlers: Handlers
 ) -> Generator[UnprocessedStream, None, None]:
-    handlers = services.get_service_handlers()
+    stream_handlers = handlers.streams
     for service in db.get_services():
-        if service.key not in handlers:
+        if service.key not in stream_handlers:
             logger.warning("Service handler for %s not installed", service.key)
             continue
         if not service.enabled:
             continue
-        handler = handlers.get(service.key)
+        handler = stream_handlers.get(service.key)
         if not handler:
             continue
         logger.info("  Checking %s (%s)", handler.name, handler.key)
@@ -237,7 +239,7 @@ def _get_new_season_streams(
 
 
 def match_show_streams(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    config: Config, db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
 ) -> None:
     logger.info("Matching streams to shows")
     streams = db.get_unmatched_streams()
@@ -249,7 +251,7 @@ def match_show_streams(
     # Check each link site
     for site in db.get_link_sites():
         logger.debug("  Checking service: %s", site.key)
-        handler = services.get_link_handler(site)
+        handler = handlers.infos.get(site.key, None)
         if not handler:
             continue
 

@@ -3,18 +3,19 @@ import logging
 from config import Config
 from data.database import DatabaseDatabase
 from data.models import Episode, Show, Stream
-from module_find_episodes import (
-    create_reddit_post,
-    edit_reddit_post,
-    format_post_text,
-)
+from module_find_episodes import create_reddit_post, edit_reddit_post, format_post_text
 from reddit import RedditHolo, get_shortlink_from_id
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
 
 def main(
-    config: Config, db: DatabaseDatabase, show_name: str, episode_count: str
+    config: Config,
+    db: DatabaseDatabase,
+    handlers: Handlers,
+    show_name: str,
+    episode_count: str,
 ) -> None:
     int_episode_count = int(episode_count)
     reddit_holo = RedditHolo(config=config)
@@ -29,6 +30,7 @@ def main(
         post_url = create_reddit_post(
             config,
             db,
+            handlers,
             show,
             stream,
             int_episode,
@@ -46,6 +48,7 @@ def main(
         edit_reddit_post(
             config,
             db,
+            handlers,
             show,
             stream,
             editing_episode,
@@ -54,7 +57,7 @@ def main(
         )
 
     megathread_title, megathread_body = _create_megathread_content(
-        config, db, show, stream, int_episode_count
+        config, db, handlers, show, stream, int_episode_count
     )
 
     megathread_post = (
@@ -80,12 +83,18 @@ def main(
 
 
 def _create_megathread_content(
-    config: Config, db: DatabaseDatabase, show: Show, stream: Stream, episode_count: int
+    config: Config,
+    db: DatabaseDatabase,
+    handlers: Handlers,
+    show: Show,
+    stream: Stream,
+    episode_count: int,
 ) -> tuple[str, str]:
     title = _create_megathread_title(config, show)
     title = format_post_text(
         config,
         db,
+        handlers,
         title,
         config.post_formats,
         show,
@@ -97,6 +106,7 @@ def _create_megathread_content(
     body = format_post_text(
         config,
         db,
+        handlers,
         config.batch_thread_post_body,
         config.post_formats,
         show,

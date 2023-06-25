@@ -9,8 +9,7 @@ from enum import StrEnum
 from functools import lru_cache, wraps
 from json import JSONDecodeError
 from time import perf_counter, sleep
-from types import ModuleType
-from typing import Any, Callable, Iterable, Type, TypeVar
+from typing import Any, Callable, Iterable, TypeVar
 from xml.etree import ElementTree as xml_parser
 
 import feedparser
@@ -21,9 +20,7 @@ from config import Config
 from data.models import (
     Episode,
     Link,
-    LinkSite,
     Poll,
-    Service,
     Show,
     Stream,
     UnprocessedShow,
@@ -32,7 +29,7 @@ from data.models import (
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
+DEFAULT_POLL_HANDLER = "youpoll"
 
 
 class ServiceTypes(StrEnum):
@@ -53,6 +50,10 @@ class Handlers:
             self.__setattr__(
                 f"{name}s", import_services(name, str(service_type), config)
             )
+
+    @property
+    def default_poll(self) -> AbstractPollHandler:
+        return self.polls[DEFAULT_POLL_HANDLER]
 
 
 def import_services(
@@ -76,45 +77,12 @@ def import_services(
     return services
 
 
-# Common
-
-_service_configs: dict[str, dict[str, str]] = {}
-
-
-def setup_services(config: Config) -> None:
-    global _service_configs
-    _service_configs = config.services
-
-
-def _get_service_config(key: str) -> dict[str, str]:
-    return _service_configs.get(key, {})
-
-
-def _make_service(service: AbstractServiceHandler) -> AbstractServiceHandler:
-    service.set_config(_get_service_config(service.key))
-    return service
-
-
-# Utilities
-
-
-def import_all_services(pkg: ModuleType, class_name: str) -> dict[str, Any]:
-    services: dict[str, AbstractServiceHandler] = {}
-    for name in pkg.__all__:
-        module = importlib.import_module("." + name, package=pkg.__name__)
-        if not hasattr(module, class_name):
-            logger.warning(
-                "Service module %s.%s has no handler %s", pkg.__name__, name, class_name
-            )
-        handler = getattr(module, class_name)()
-        services[handler.key] = _make_service(handler)
-        del module
-    return services
-
-
 ##############
 # Requesting #
 ##############
+
+
+T = TypeVar("T")
 
 
 def rate_limit(wait_length: float) -> Callable[[Callable[..., T]], Callable[..., T]]:
@@ -237,10 +205,10 @@ class Requestable:
         return response.text
 
 
-@dataclass(kw_only=True)
 class BaseHandler:
-    key: str
-    config: dict[str, str] = field(default_factory=dict)
+    def __init__(self, key: str) -> None:
+        self.key = key
+        self.config: dict[str, str] = {}
 
     def set_config(self, config: dict[str, str]) -> None:
         self.config = config
@@ -353,60 +321,6 @@ class AbstractServiceHandler(BaseHandler, Requestable, ABC):
         return []
 
 
-# Services
-
-_services: dict[str, AbstractServiceHandler] = {}
-
-
-def _ensure_service_handlers() -> None:
-    global _services
-    if not _services:
-        from . import stream
-
-        _services = import_all_services(stream, "ServiceHandler")
-
-
-def get_service_handlers() -> dict[str, AbstractServiceHandler]:
-    """
-    Creates an instance of every service in the services module and returns a mapping to their keys.
-    :return: A dict of service keys to an instance of the service
-    """
-    _ensure_service_handlers()
-    return _services
-
-
-def get_service_handler(
-    service: Service | None = None, key: str | None = None
-) -> AbstractServiceHandler | None:
-    """
-    Returns an instance of a service handler representing the given service or service key.
-    :param service: A service
-    :param key: A service key
-    :return: A service handler instance
-    """
-    _ensure_service_handlers()
-    if service and service.key in _services:
-        return _services[service.key]
-    if key and key in _services:
-        return _services[key]
-    return None
-
-
-@lru_cache(maxsize=1)
-def get_generic_service_handlers(
-    services: Iterable[AbstractServiceHandler] | None = None,
-    keys: Iterable[str] | None = None,
-) -> list[AbstractServiceHandler]:
-    _ensure_service_handlers()
-    if services and not keys:
-        keys = {s.key for s in services}
-    return [
-        service
-        for key, service in _services.items()
-        if (not keys or key in keys) and service.is_generic
-    ]
-
-
 ################
 # Link handler #
 ################
@@ -489,45 +403,6 @@ class AbstractInfoHandler(BaseHandler, Requestable, ABC):
         return []
 
 
-# Link sites
-
-_link_sites: dict[str, AbstractInfoHandler] = {}
-
-
-def _ensure_link_handlers() -> None:
-    global _link_sites
-    if not _link_sites:
-        from . import info
-
-        _link_sites = import_all_services(info, "InfoHandler")
-
-
-def get_link_handlers() -> dict[str, AbstractInfoHandler]:
-    """
-    Creates an instance of every link handler in the links module and returns a mapping to their keys.
-    :return: A dict of link handler keys to an instance of the link handler
-    """
-    _ensure_link_handlers()
-    return _link_sites
-
-
-def get_link_handler(
-    link_site: LinkSite | None = None, key: str | None = None
-) -> AbstractInfoHandler | None:
-    """
-    Returns an instance of a link handler representing the given link site.
-    :param link_site: A link site
-    :param key: A link site key
-    :return: A link handler instance
-    """
-    _ensure_link_handlers()
-    if link_site and link_site.key in _link_sites:
-        return _link_sites[link_site.key]
-    if key and key in _link_sites:
-        return _link_sites[key]
-    return None
-
-
 ################
 # Poll handler #
 ################
@@ -575,32 +450,3 @@ class AbstractPollHandler(BaseHandler, Requestable, ABC):
         if score:
             return str(score)
         return "----"
-
-
-_poll_sites: dict[str, AbstractPollHandler] = {}
-
-
-def _ensure_poll_handlers() -> None:
-    global _poll_sites
-    if not _poll_sites:
-        from . import poll
-
-        _poll_sites = import_all_services(poll, "PollHandler")
-
-
-def get_poll_handlers() -> dict[str, AbstractPollHandler]:
-    """
-    Creates an instance of every poll handler in the polls module and returns a mapping to their keys.
-    :return: a dict of poll handler keys to the instance of th poll handler
-    """
-    _ensure_poll_handlers()
-    return _poll_sites
-
-
-def get_default_poll_handler() -> AbstractPollHandler:
-    """
-    Returns an instance of the default poll handler.
-    :return: the handler
-    """
-    _ensure_poll_handlers()
-    return _poll_sites["youpoll"]

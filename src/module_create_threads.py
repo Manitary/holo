@@ -5,12 +5,17 @@ from data.database import DatabaseDatabase
 from data.models import Episode, Stream
 from module_find_episodes import create_reddit_post, edit_reddit_post
 from reddit import RedditHolo
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
 
 def main(
-    config: Config, db: DatabaseDatabase, show_name: str, episode: str | int
+    config: Config,
+    db: DatabaseDatabase,
+    handlers: Handlers,
+    show_name: str,
+    episode: str | int,
 ) -> bool:
     int_episode = Episode(number=int(episode))
     reddit_holo = RedditHolo(config=config)
@@ -22,6 +27,7 @@ def main(
     post_url = create_reddit_post(
         config,
         db,
+        handlers,
         show,
         stream,
         int_episode,
@@ -40,6 +46,7 @@ def main(
         edit_reddit_post(
             config,
             db,
+            handlers,
             show,
             stream,
             editing_episode,

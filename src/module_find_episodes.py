@@ -1,16 +1,16 @@
 import logging
 from typing import Any
 
-import services
 from config import Config
 from data.database import DatabaseDatabase
 from data.models import Episode, Show, Stream
 from reddit import RedditHolo, get_shortlink_from_id
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
 
-def main(config: Config, db: DatabaseDatabase) -> None:
+def main(config: Config, db: DatabaseDatabase, handlers: Handlers) -> None:
     reddit_holo = RedditHolo(config=config)
 
     has_new_episode: list[Show] = []
@@ -20,7 +20,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
 
     for service in enabled_services:
         try:
-            service_handler = services.get_service_handler(service)
+            service_handler = handlers.streams.get(service.key, None)
             if not service_handler:
                 continue
 
@@ -50,7 +50,13 @@ def main(config: Config, db: DatabaseDatabase) -> None:
 
                 for episode in sorted(episodes, key=lambda e: e.number):
                     if _process_new_episode(
-                        config, db, show, stream, episode, reddit_agent=reddit_holo
+                        config,
+                        db,
+                        handlers,
+                        show,
+                        stream,
+                        episode,
+                        reddit_agent=reddit_holo,
                     ):
                         has_new_episode.append(show)
         except IOError:
@@ -69,7 +75,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
     other_streams = [Stream.from_show(show) for show in other_shows]
     for service in enabled_services:
         try:
-            service_handler = services.get_service_handler(service)
+            service_handler = handlers.streams.get(service.key, None)
             if not service_handler or not service_handler.is_generic:
                 continue
             logger.debug("    Checking service %s", service_handler.name)
@@ -96,7 +102,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
 
                 for episode in sorted(episodes, key=lambda e: e.number):
                     if _process_new_episode(
-                        config, db, show, stream, episode, reddit_holo
+                        config, db, handlers, show, stream, episode, reddit_holo
                     ):
                         has_new_episode.append(show)
         except IOError:
@@ -115,6 +121,7 @@ def main(config: Config, db: DatabaseDatabase) -> None:
 def _process_new_episode(
     config: Config,
     db: DatabaseDatabase,
+    handlers: Handlers,
     show: Show,
     stream: Stream,
     episode: Episode,
@@ -167,6 +174,7 @@ def _process_new_episode(
     post_url = create_reddit_post(
         config,
         db,
+        handlers,
         show,
         stream,
         int_episode,
@@ -191,6 +199,7 @@ def _process_new_episode(
         edit_reddit_post(
             config,
             db,
+            handlers,
             show,
             stream,
             editing_episode,
@@ -203,6 +212,7 @@ def _process_new_episode(
 def create_reddit_post(
     config: Config,
     db: DatabaseDatabase,
+    handlers: Handlers,
     show: Show,
     stream: Stream,
     episode: Episode,
@@ -210,7 +220,9 @@ def create_reddit_post(
 ) -> str | None:
     display_episode = stream.to_display_episode(episode)
 
-    title, body = _create_post_contents(config, db, show, stream, display_episode)
+    title, body = _create_post_contents(
+        config, db, handlers, show, stream, display_episode
+    )
     if not reddit_agent:
         return None
     new_post = reddit_agent.submit_text_post(title, body)
@@ -224,6 +236,7 @@ def create_reddit_post(
 def edit_reddit_post(
     config: Config,
     db: DatabaseDatabase,
+    handlers: Handlers,
     show: Show,
     stream: Stream,
     episode: Episode,
@@ -233,7 +246,7 @@ def edit_reddit_post(
     display_episode = stream.to_display_episode(episode)
 
     _, body = _create_post_contents(
-        config, db, show, stream, display_episode, quiet=True
+        config, db, handlers, show, stream, display_episode, quiet=True
     )
     if reddit_agent:
         reddit_agent.edit_text_post(url, body)
@@ -242,6 +255,7 @@ def edit_reddit_post(
 def _create_post_contents(
     config: Config,
     db: DatabaseDatabase,
+    handlers: Handlers,
     show: Show,
     stream: Stream,
     episode: Episode,
@@ -249,11 +263,18 @@ def _create_post_contents(
 ) -> tuple[str, str]:
     title = _create_post_title(config, show, episode)
     title = format_post_text(
-        config, db, title, config.post_formats, show, episode, stream
+        config, db, handlers, title, config.post_formats, show, episode, stream
     )
     logger.info("Title:\n%s", title)
     body = format_post_text(
-        config, db, config.post_body, config.post_formats, show, episode, stream
+        config,
+        db,
+        handlers,
+        config.post_body,
+        config.post_formats,
+        show,
+        episode,
+        stream,
     )
     if not quiet:
         logger.info("Body:\n%s", body)
@@ -263,6 +284,7 @@ def _create_post_contents(
 def format_post_text(
     config: Config,
     db: DatabaseDatabase,
+    handlers: Handlers,
     text: str,
     formats: dict[str, str],
     show: Show,
@@ -273,18 +295,18 @@ def format_post_text(
     if "{spoiler}" in text:
         text = safe_format(text, spoiler=_gen_text_spoiler(formats, show))
     if "{streams}" in text:
-        text = safe_format(text, streams=_gen_text_streams(db, formats, show))
+        text = safe_format(text, streams=_gen_text_streams(db, handlers, formats, show))
     if "{links}" in text:
-        text = safe_format(text, links=_gen_text_links(db, formats, show))
+        text = safe_format(text, links=_gen_text_links(db, handlers, formats, show))
     if "{discussions}" in text:
         text = safe_format(
-            text, discussions=_gen_text_discussions(db, formats, show, stream)
+            text, discussions=_gen_text_discussions(db, handlers, formats, show, stream)
         )
     if "{aliases}" in text:
         text = safe_format(text, aliases=_gen_text_aliases(db, formats, show))
     if "{poll}" in text:
         text = safe_format(
-            text, poll=_gen_text_poll(db, config, formats, show, episode)
+            text, poll=_gen_text_poll(db, config, handlers, formats, show, episode)
         )
 
     episode_name = f": {episode.name}" if episode.name else ""
@@ -327,7 +349,9 @@ def _gen_text_spoiler(formats: dict[str, str], show: Show) -> str:
     return ""
 
 
-def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
+def _gen_text_streams(
+    db: DatabaseDatabase, handlers: Handlers, formats: dict[str, str], show: Show
+) -> str:
     logger.debug("Generating stream text for show %s", show)
     stream_texts: list[str] = []
 
@@ -338,7 +362,7 @@ def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show)
         service = db.get_service_from_id(id=stream.service)
         if not (service and service.enabled and service.use_in_post):
             continue
-        service_handler = services.get_service_handler(service)
+        service_handler = handlers.streams.get(service.key, None)
         if not service_handler:
             continue
         text = safe_format(
@@ -363,7 +387,9 @@ def _gen_text_streams(db: DatabaseDatabase, formats: dict[str, str], show: Show)
     return "*None*"
 
 
-def _gen_text_links(db: DatabaseDatabase, formats: dict[str, str], show: Show) -> str:
+def _gen_text_links(
+    db: DatabaseDatabase, handlers: Handlers, formats: dict[str, str], show: Show
+) -> str:
     logger.debug("Generating stream text for show %s", show)
     links = db.get_links(show=show)
     link_texts: list[str] = []
@@ -374,7 +400,7 @@ def _gen_text_links(db: DatabaseDatabase, formats: dict[str, str], show: Show) -
         site = db.get_link_site_from_id(id=link.site)
         if not (site and site.enabled):
             continue
-        link_handler = services.get_link_handler(site)
+        link_handler = handlers.infos.get(site.key, None)
         if not link_handler:
             continue
         if site.key == "subreddit":
@@ -398,7 +424,11 @@ _MAX_COLS = 4
 
 
 def _gen_text_discussions(
-    db: DatabaseDatabase, formats: dict[str, str], show: Show, stream: Stream
+    db: DatabaseDatabase,
+    handlers: Handlers,
+    formats: dict[str, str],
+    show: Show,
+    stream: Stream,
 ) -> str:
     episodes = db.get_episodes(show)
     logger.debug("Num previous episodes: %d", len(episodes))
@@ -412,7 +442,7 @@ def _gen_text_discussions(
     table: list[str] = []
     for episode in episodes:
         episode = stream.to_display_episode(episode)
-        poll_handler = services.get_default_poll_handler()
+        poll_handler = handlers.default_poll
         poll = db.get_poll(show, episode)
         if not poll:
             score = None
@@ -458,11 +488,12 @@ def _gen_text_aliases(db: DatabaseDatabase, formats: dict[str, str], show: Show)
 def _gen_text_poll(
     db: DatabaseDatabase,
     config: Config,
+    handlers: Handlers,
     formats: dict[str, str],
     show: Show,
     episode: Episode,
 ) -> str:
-    handler = services.get_default_poll_handler()
+    handler = handlers.default_poll
     title = config.post_poll_title.format(show=show.name, episode=episode.number)
 
     poll = db.get_poll(show, episode)

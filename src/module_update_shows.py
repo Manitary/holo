@@ -1,29 +1,33 @@
 import logging
 from datetime import datetime, timedelta
 
-import services
 from config import Config
 from data.database import DatabaseDatabase
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
 
-def main(config: Config, db: DatabaseDatabase) -> None:
+def main(config: Config, db: DatabaseDatabase, handlers: Handlers) -> None:
     # Find data not provided by the edit module
-    _check_missing_stream_info(config, db, update_db=not config.debug)
+    _check_missing_stream_info(
+        config, db, handlers=handlers, update_db=not config.debug
+    )
     # Check for new show scores
     if config.record_scores:
-        _check_new_episode_scores(config, db, update_db=not config.debug)
+        _check_new_episode_scores(
+            config, db, handlers=handlers, update_db=not config.debug
+        )
     # Record poll scores to avoid querying them every time
-    _record_poll_scores(db, update_db=not config.debug)
+    _record_poll_scores(db, handlers=handlers, update_db=not config.debug)
     # Show lengths aren't always known at the start of the season
-    _check_show_lengths(config, db, update_db=not config.debug)
+    _check_show_lengths(config, db, handlers=handlers, update_db=not config.debug)
     # Check if shows have finished and disable them if they have
     _disable_finished_shows(db, update_db=not config.debug)
 
 
 def _check_show_lengths(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    config: Config, db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
 ) -> None:
     logger.info("Checking show lengths")
 
@@ -34,7 +38,7 @@ def _check_show_lengths(
 
         # Check all info handlers for an episode count
         # Some may not implement get_episode_count and return None
-        for handler in services.get_link_handlers().values():
+        for handler in handlers.infos.values():
             logger.info("  Checking %s (%s)", handler.name, handler.key)
 
             # Get show link to site represented by the handler
@@ -85,7 +89,7 @@ def _disable_finished_shows(db: DatabaseDatabase, update_db: bool = True) -> Non
 
 
 def _check_missing_stream_info(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    config: Config, db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
 ) -> None:
     logger.info("Checking for missing stream info")
 
@@ -101,7 +105,7 @@ def _check_missing_stream_info(
             stream.show_key,
         )
 
-        service = services.get_service_handler(key=service_info.key)
+        service = handlers.streams.get(service_info.key, None)
         if not service:
             continue
         stream = service.get_stream_info(stream, useragent=config.useragent)
@@ -126,7 +130,7 @@ def _check_missing_stream_info(
 
 
 def _check_new_episode_scores(
-    config: Config, db: DatabaseDatabase, update_db: bool = True
+    config: Config, db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
 ) -> None:
     logger.info("Checking for new episode scores")
 
@@ -148,7 +152,7 @@ def _check_new_episode_scores(
             logger.info("  Already has scores, ignoring")
             continue
 
-        for handler in services.get_link_handlers().values():
+        for handler in handlers.infos.values():
             logger.info("  Checking %s (%s)", handler.name, handler.key)
 
             # Get show link to site represented by the handler
@@ -169,9 +173,11 @@ def _check_new_episode_scores(
             db.commit()
 
 
-def _record_poll_scores(db: DatabaseDatabase, update_db: bool = True) -> None:
+def _record_poll_scores(
+    db: DatabaseDatabase, handlers: Handlers, update_db: bool = True
+) -> None:
     polls = db.get_polls_missing_score()
-    handler = services.get_default_poll_handler()
+    handler = handlers.default_poll
     logger.info("Record scores for service %s", handler.key)
 
     updated = 0

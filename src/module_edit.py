@@ -3,18 +3,18 @@ from typing import Any
 
 import yaml
 
-import services
 from data.database import DatabaseDatabase
 from data.models import ShowType, UnprocessedShow, UnprocessedStream, str_to_showtype
+from services import Handlers
 
 logger = logging.getLogger(__name__)
 
 
-def main(db: DatabaseDatabase, edit_file: str) -> None:
+def main(db: DatabaseDatabase, edit_file: str, handlers: Handlers) -> None:
     if not edit_file:
         logger.warning("Nothing to do")
         return
-    if _edit_with_file(db, edit_file):
+    if _edit_with_file(db=db, edit_file=edit_file, handlers=handlers):
         logger.info("Edit successful; saving")
         db.commit()
     else:
@@ -22,7 +22,9 @@ def main(db: DatabaseDatabase, edit_file: str) -> None:
         db.rollback()
 
 
-def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
+def _edit_with_file(
+    db: DatabaseDatabase, edit_file: str, handlers: Handlers
+) -> bool | None:
     logger.info('Parsing show edit file "%s"', edit_file)
     try:
         with open(edit_file, "r", encoding="UTF-8") as f:
@@ -74,12 +76,15 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
                 continue
 
             logger.debug("  Info %s: %s", info_key, url)
-            info_handler = services.get_link_handler(key=info_key)
+            info_handler = handlers.infos[info_key]
             if not info_handler:
                 logger.error("    Info handler not installed")
                 continue
 
             info_id = info_handler.extract_show_id(url)
+            if not info_id:
+                logger.warning("    Could not extract show id")
+                continue
             logger.debug("    id=%s", info_id)
 
             if db.has_link(info_key, info_id, show_id):
@@ -109,7 +114,7 @@ def _edit_with_file(db: DatabaseDatabase, edit_file: str) -> bool | None:
             logger.info("  Stream %s: %s", service_key, url)
 
             service_id = service_key.split("|")[0]
-            stream_handler = services.get_service_handler(key=service_id)
+            stream_handler = handlers.streams.get(service_id, None)
             if stream_handler:
                 show_key = stream_handler.extract_show_key(url)
                 logger.debug("    id=%s", show_key)
