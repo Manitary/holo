@@ -45,7 +45,9 @@ class PollHandler(AbstractPollHandler):
     def __init__(self) -> None:
         super().__init__(key="youpoll")
 
-    def create_poll(self, title: str, submit: bool, **kwargs: Any) -> str | None:
+    def create_poll(
+        self, title: str, submit: bool = False, **kwargs: Any
+    ) -> str | None:
         if not submit:
             return None
         # headers = _poll_post_headers
@@ -54,7 +56,9 @@ class PollHandler(AbstractPollHandler):
         data["poll-1[question]"] = title
         # resp = requests.post(_poll_post_url, data = data, headers = headers, **kwargs)
         try:
-            resp = requests.post(self._poll_post_url, data=data, **kwargs)
+            resp = requests.post(
+                self._poll_post_url, data=data, timeout=self.default_timeout, **kwargs
+            )
         except Exception as e:
             logger.error("Could not create poll (exception in POST): %s", e)
             return None

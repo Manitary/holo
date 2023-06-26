@@ -410,7 +410,9 @@ class AbstractInfoHandler(BaseHandler, Requestable, ABC):
 
 class AbstractPollHandler(BaseHandler, Requestable, ABC):
     @abstractmethod
-    def create_poll(self, title: str, submit: bool, **kwargs: Any) -> str | None:
+    def create_poll(
+        self, title: str, submit: bool = False, **kwargs: Any
+    ) -> str | None:
         """
         Create a new Poll.
         :param title: title of this poll
@@ -419,22 +421,22 @@ class AbstractPollHandler(BaseHandler, Requestable, ABC):
         return None
 
     @abstractmethod
-    def get_link(self, poll: Poll) -> str | None:
+    def get_link(self, poll: Poll) -> str:
         """
         Creates a URL using the information provided by the poll object.
         :param poll: the Poll object
         :return: a URL
         """
-        return None
+        return ""
 
     @abstractmethod
-    def get_results_link(self, poll: Poll) -> str | None:
+    def get_results_link(self, poll: Poll) -> str:
         """
         Creates a URL for the poll results using the information provided by the poll object.
         :param poll: the Poll object
         :return: a URL
         """
-        return None
+        return ""
 
     @abstractmethod
     def get_score(self, poll: Poll) -> float | None:
