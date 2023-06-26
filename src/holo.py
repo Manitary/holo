@@ -96,7 +96,7 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
                 db=db,
                 handlers=handlers,
                 show_name=args.extra[0],
-                episode=args.extra[1],
+                episode_number=args.extra[1],
             )
         elif config.module == "batch":
             logger.info("Batch creating threads")
