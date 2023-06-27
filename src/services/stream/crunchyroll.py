@@ -165,7 +165,7 @@ def _verify_feed(feed: CrunchyrollPayload) -> bool:
     if feed["bozo"]:
         logger.debug("  Feed was malformed")
         return False
-    if feed["namespaces"].get("namespaces", "") != "http://www.crunchyroll.com/rss":
+    if feed["namespaces"].get("crunchyroll", "") != "http://www.crunchyroll.com/rss":
         logger.debug("  Crunchyroll namespace not found or invalid")
         return False
     if feed["feed"]["language"] != "en-us":
