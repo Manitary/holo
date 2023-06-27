@@ -4,7 +4,7 @@
 import logging
 import re
 from typing import Any
-from xml.etree.ElementTree import Element, XMLParser
+from xml.etree.ElementTree import Element
 
 from bs4 import BeautifulSoup
 

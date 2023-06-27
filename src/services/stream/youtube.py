@@ -3,6 +3,12 @@ import re
 from datetime import datetime
 from typing import Any, Iterable
 
+from data.feeds import (
+    YoutubePayload,
+    YoutubePlaylistPayload,
+    YoutubeVideoItem,
+    YoutubeVideoPayload,
+)
 from data.models import Episode, Stream, UnprocessedStream
 
 from .. import AbstractServiceHandler
@@ -11,8 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 class ServiceHandler(AbstractServiceHandler):
-    _playlist_api_query = "https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId={id}&key={key}"
-    _videos_api_query = "https://youtube.googleapis.com/youtube/v3/videos?part=status&part=snippet&hl=en&id={id}&key={key}"
+    _playlist_api_query = (
+        "https://www.googleapis.com/youtube/v3/playlistItems"
+        "?part=contentDetails&maxResults=50&playlistId={id}&key={key}"
+    )
+    _videos_api_query = (
+        "https://youtube.googleapis.com/youtube/v3/videos"
+        "?part=status&part=snippet&hl=en&id={id}&key={key}"
+    )
     _channel_url = "https://www.youtube.com/playlist?list={id}"
     _channel_re = re.compile(r"youtube.com/playlist\?list=([\w-]+)", re.I)
 
@@ -28,7 +40,7 @@ class ServiceHandler(AbstractServiceHandler):
         # Extract valid episodes from feed and digest
         episodes: list[Episode] = []
         for episode_data in episode_datas:
-            if _is_valid_episode(episode_data, stream.show_key):
+            if _is_valid_episode(episode_data):
                 try:
                     episode = _digest_episode(episode_data)
                     if episode:
@@ -40,43 +52,46 @@ class ServiceHandler(AbstractServiceHandler):
         logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
-    def _get_feed_episodes(self, show_key: str, **kwargs: Any):
+    def _get_feed_episodes(
+        self, show_key: str, **kwargs: Any
+    ) -> list[YoutubeVideoItem]:
         url = self._get_feed_url(show_key)
         if not url:
             logger.error("Cannot get feed url for %s/%s", self.name, show_key)
             return []
 
-        # Request channel information
-        response = self.request_json(url, **kwargs)
-        if not response:
+        # Request playlist information
+        response_playlist = YoutubePlaylistPayload(self.request_json(url, **kwargs))
+        if not response_playlist:
             logger.error("Cannot get episode feed for %s/%s", self.name, show_key)
             return []
 
         # Extract videos ids and build new query for all videos
-        if not _verify_feed(response):
+        if not _verify_feed(response_playlist):
             logger.warning(
                 "Parsed feed could not be verified, may have unexpected results"
             )
-        feed = response.get("items", [])
 
-        video_ids = [item["contentDetails"]["videoId"] for item in feed]
+        video_ids = [
+            item["contentDetails"]["videoId"] for item in response_playlist["items"]
+        ]
         url = self._get_videos_url(video_ids)
         if not url:
             logger.warning("url not produced")
             return []
 
         # Request videos information
-        response = self.request_json(url, **kwargs)
-        if not response:
+        response_video: YoutubeVideoPayload = self.request_json(url, **kwargs)
+        if not response_video:
             logger.error("Cannot get video information for %s/%s", self.name, show_key)
             return []
 
         # Return feed
-        if not _verify_feed(response):
+        if not _verify_feed(response_playlist):
             logger.warning(
                 "Parsed feed could not be verified, may have unexpected results"
             )
-        return response.get("items", [])
+        return response_video["items"]
 
     def _get_feed_url(self, show_key: str) -> str | None:
         # Show key is the channel ID
@@ -118,7 +133,7 @@ class ServiceHandler(AbstractServiceHandler):
 # Episode feeds format
 
 
-def _verify_feed(feed) -> bool:
+def _verify_feed(feed: YoutubePayload) -> bool:
     logger.debug("Verifying feed")
     if feed["kind"] not in {
         "youtube#playlistItemListResponse",
@@ -155,7 +170,7 @@ _num_extractors = [
 ]
 
 
-def _is_valid_episode(feed_episode, show_id) -> bool:
+def _is_valid_episode(feed_episode: YoutubeVideoItem) -> bool:
     if feed_episode["status"]["privacyStatus"] == "private":
         logger.info("  Video was excluded (is private)")
         return False
@@ -175,7 +190,7 @@ def _is_valid_episode(feed_episode, show_id) -> bool:
     return True
 
 
-def _digest_episode(feed_episode) -> Episode | None:
+def _digest_episode(feed_episode: YoutubeVideoItem) -> Episode | None:
     _video_url = "https://www.youtube.com/watch?v={video_id}"
     snippet = feed_episode["snippet"]
 

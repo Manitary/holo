@@ -60,15 +60,12 @@ class ServiceHandler(AbstractServiceHandler):
 
         url = self._get_feed_url(show_key)
 
-        # Send request
         response: BeautifulSoup | None = self.request_html(url=url, **kwargs)
         if not response:
             logger.error("Cannot get show page for HiDive/%s", show_key)
             return []
 
-        # Parse html page
         sections = response.find_all("div", {"data-section": "episodes"})
-        # return [section.a['data-playurl'] for section in sections if section.a]
         return sections
 
     @classmethod
@@ -95,7 +92,9 @@ class ServiceHandler(AbstractServiceHandler):
         if not title_section:
             logger.error("Could not extract title")
             return None
-
+        if not (isinstance(title_section, Tag) and title_section.h1):
+            logger.error("Could not extract title")
+            return None
         stream.name = title_section.h1.text
         return stream
 
@@ -148,7 +147,6 @@ def _preprocess_episode(feed_episode: Tag) -> Episode | None:
     logger.debug("Pre-processing episode")
     if not feed_episode.a:
         return None
-
     episode_link = _episode_link.format(href=feed_episode.a["href"])
 
     # Get data

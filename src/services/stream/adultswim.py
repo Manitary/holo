@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import dateutil.parser
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from data.models import Episode, Stream, UnprocessedStream
 
@@ -29,9 +29,12 @@ class ServiceHandler(AbstractServiceHandler):
         # Check episode validity and digest
         episodes: list[Episode] = []
         for episode_data in episode_datas:
-            if _is_valid_episode(episode_data, stream.show_key):
+            if _is_valid_episode(episode_data):
                 try:
-                    episodes.append(_digest_episode(episode_data))
+                    episode = _digest_episode(episode_data)
+                    if not episode:
+                        continue
+                    episodes.append(episode)
                 except Exception:
                     logger.exception(
                         "Problem digesting episode for %s/%s",
@@ -41,12 +44,15 @@ class ServiceHandler(AbstractServiceHandler):
         logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
-    def _get_feed_episodes(self, show_key: str, **kwargs: Any):
+    def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[Tag]:
         logger.info("Getting episodes for %s/%s", self.name, show_key)
         url = self._get_feed_url(show_key)
+        if not url:
+            logger.error("Cannot get url from show key")
+            return []
 
         # Send request
-        response: BeautifulSoup | None = self.request_html(url, **kwargs)
+        response: BeautifulSoup | None = self.request_html(url=url, **kwargs)
         if not response:
             logger.error("Cannot get show page for %s/%s", self.name, show_key)
             return []
@@ -91,9 +97,17 @@ class ServiceHandler(AbstractServiceHandler):
         return None
 
 
-def _is_valid_episode(episode_data, show_key: str) -> bool:
+def _is_valid_episode(episode_data: Tag) -> bool:
     # Don't check old episodes (possible wrong season !)
-    date_string = episode_data.find("meta", itemprop="datePublished")["content"]
+    date_tag = episode_data.find("meta", itemprop="datePublished")
+
+    if not isinstance(date_tag, Tag):
+        logger.debug("  Failed date parsing")
+        return False
+    date_string = date_tag["content"]
+    if not isinstance(date_string, str):
+        logger.debug("  Failed date parsing")
+        return False
     date = datetime.fromordinal(dateutil.parser.parse(date_string).toordinal())
 
     if date > datetime.utcnow():
@@ -107,14 +121,33 @@ def _is_valid_episode(episode_data, show_key: str) -> bool:
     return True
 
 
-def _digest_episode(feed_episode) -> Episode:
+def _digest_episode(feed_episode: Tag) -> Episode | None:
     logger.debug("Digesting episode")
+    name_tag = feed_episode.find("h4", itemprop="name", class_="episode__title")
+    link_tag = feed_episode.find("a", itemprop="url", class_="episode__link")
+    number_tag = feed_episode.find("meta", itemprop="episodeNumber")
+    date_tag = feed_episode.find("meta", itemprop="dateCreated")
+    if not (
+        isinstance(name_tag, Tag)
+        and isinstance(link_tag, Tag)
+        and isinstance(number_tag, Tag)
+        and isinstance(date_tag, Tag)
+    ):
+        logger.debug("  Failed to digest episode")
+        return None
 
-    name: str = feed_episode.find("h4", itemprop="name", class_="episode__title").text
-    link: str = feed_episode.find("a", itemprop="url", class_="episode__link").href
-    num: int = int(feed_episode.find("meta", itemprop="episodeNumber")["content"])
+    number_str = number_tag["content"]
+    date_string = date_tag["content"]
+    link = link_tag["href"]
+    if not (
+        isinstance(number_str, str)
+        and isinstance(date_string, str)
+        and isinstance(link, str)
+    ):
+        return None
 
-    date_string: str = feed_episode.find("meta", itemprop="dateCreated")["content"]
+    name = name_tag.text
+    num = int(number_str)
     date = datetime.fromordinal(dateutil.parser.parse(date_string).toordinal())
 
     return Episode(number=num, name=name, link=link, date=date)

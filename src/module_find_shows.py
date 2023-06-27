@@ -1,6 +1,6 @@
 import logging
 from collections import OrderedDict
-from typing import Generator
+from typing import Any, Generator
 
 import yaml
 
@@ -14,14 +14,13 @@ logger = logging.getLogger(__name__)
 
 def main(
     config: Config,
-    db: DatabaseDatabase,
     handlers: Handlers,
     output_yaml: bool,
     output_file: str | None = None,
 ) -> None:
     if output_yaml and output_file:
         logger.debug("Using output file: %s", output_file)
-        create_season_config(config, db, handlers, output_file)
+        create_season_config(config, handlers, output_file)
     # check_new_shows(config, db, update_db=not config.debug)
     # check_new_shows(config, db)
     # match_show_streams(config, db, update_db=not config.debug)
@@ -32,16 +31,18 @@ def main(
 
 # New shows
 
+
 # Retain order of OrderedDict when dumping yaml
-represent_dict_order = lambda self, data: self.represent_mapping(
-    "tag:yaml.org,2002:map", data.items()
-)
+def represent_dict_order(
+    self: yaml.Dumper, data: OrderedDict[str, Any]
+) -> yaml.MappingNode:
+    return self.represent_mapping("tag:yaml.org,2002:map", data.items())
+
+
 yaml.add_representer(OrderedDict, represent_dict_order)
 
 
-def create_season_config(
-    config: Config, db: DatabaseDatabase, handlers: Handlers, output_file: str
-) -> None:
+def create_season_config(config: Config, handlers: Handlers, output_file: str) -> None:
     logger.info("Checking for new shows")
     shows = _get_primary_source_shows(config, handlers)
 
@@ -50,7 +51,9 @@ def create_season_config(
         yaml.dump_all(shows, f, explicit_start=True, default_flow_style=False)
 
 
-def _get_primary_source_shows(config: Config, handlers: Handlers):
+def _get_primary_source_shows(
+    config: Config, handlers: Handlers
+) -> list[OrderedDict[str, Any]]:
     logger.debug("Retrieving primary show list")
     link_handlers = handlers.infos
     service_handlers = handlers.streams
@@ -58,11 +61,11 @@ def _get_primary_source_shows(config: Config, handlers: Handlers):
     site_key = config.discovery_primary_source
     if site_key not in link_handlers:
         logger.warning("Primary source site handler for %s not installed", site_key)
-        return
+        return []
 
     site_handler = link_handlers[site_key]
 
-    shows = []
+    shows: list[OrderedDict[str, Any]] = []
     for raw_show in site_handler.get_seasonal_shows(useragent=config.useragent):
         if (
             raw_show.show_type is not ShowType.UNKNOWN

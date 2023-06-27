@@ -72,12 +72,11 @@ def holo(config: Config, args: Type[ParserArguments]) -> None:
             import module_find_shows as m
 
             if args.output == "db":
-                m.main(config=config, db=db, handlers=handlers, output_yaml=False)
+                m.main(config=config, handlers=handlers, output_yaml=False)
             elif args.output == "yaml":
                 f = args.extra[0] if len(args.extra) > 0 else "find_output.yaml"
                 m.main(
                     config=config,
-                    db=db,
                     handlers=handlers,
                     output_yaml=True,
                     output_file=f,
