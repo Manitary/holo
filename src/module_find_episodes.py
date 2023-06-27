@@ -125,7 +125,7 @@ def _process_new_episode(
         "  Latest ep num: %s", latest_episode.number if latest_episode else "none"
     )
     logger.debug("  Already seen: %s", already_seen)
-    logger.debug("  Gap between episodes: %d", episode_number_gap)
+    logger.debug("  Gap between episodes: %s", episode_number_gap)
 
     logger.info(
         "  Posted on %s, number %d, %s, %s",
