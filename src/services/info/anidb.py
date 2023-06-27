@@ -23,10 +23,21 @@ logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://anidb.net/perl-bin/animedb.pl?show=anime&aid={id}"
-    _show_link_matcher = "https?://anidb\\.net/a([0-9]+)|https?://anidb\\.net/perl-bin/animedb\\.pl\\?(?:[^/]+&)aid=([0-9]+)|https?://anidb\\.net/anime/([0-9]+)"
-    _season_url = "https://anidb.net/perl-bin/animedb.pl?show=calendar&tvseries=1&ova=1&last.anime.month=1&last.anime.year=2016"
+    _show_link_matcher = re.compile(
+        r"https?://anidb\\.net/a([0-9]+)"
+        r"|https?://anidb\\.net/perl-bin/animedb\\.pl\\?(?:[^/]+&)aid=([0-9]+)"
+        r"|https?://anidb\\.net/anime/([0-9]+)",
+        re.I,
+    )
+    _season_url = (
+        "https://anidb.net/perl-bin/animedb.pl"
+        "?show=calendar&tvseries=1&ova=1&last.anime.month=1&last.anime.year=2016"
+    )
 
-    _api_base = "http://api.anidb.net:9001/httpapi?client={client}&clientver={ver}&protover=1&request={request}"
+    _api_base = (
+        "http://api.anidb.net:9001/httpapi"
+        "?client={client}&clientver={ver}&protover=1&request={request}"
+    )
 
     def __init__(self) -> None:
         super().__init__(key="anidb", name="AniDB")
@@ -38,7 +49,7 @@ class InfoHandler(AbstractInfoHandler):
         return self._show_link_base.format(id=link.site_key)
 
     def extract_show_id(self, url: str) -> str | None:
-        if match := re.match(self._show_link_matcher, url, re.I):
+        if match := self._show_link_matcher.match(url):
             return match.group(1) or match.group(2) or match.group(3)
         return None
 

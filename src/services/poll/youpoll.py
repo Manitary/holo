@@ -1,6 +1,7 @@
 import logging
 import re
 from typing import Any
+from bs4 import Tag
 
 import requests
 
@@ -89,12 +90,19 @@ class PollHandler(AbstractPollHandler):
                 self.get_results_link(poll),
             )
             return None
-
+        if not response:
+            logger.error(
+                "Couldn't get scores for poll %s (GET request failed)",
+                self.get_results_link(poll),
+            )
+            return None
         try:
             # 5 points scale
             divs = response.find_all("div", class_="basic-option-wrapper")
-            num_votes_str = response.find("span", class_="admin-total-votes").text
-            num_votes = int(num_votes_str.replace(",", ""))
+            num_votes_tag = response.find("span", class_="admin-total-votes")
+            if not isinstance(num_votes_tag, Tag):
+                raise AttributeError
+            num_votes = int(num_votes_tag.text.replace(",", ""))
             if num_votes == 0:
                 logger.warning("No vote recorded, no score returned")
                 return None
@@ -109,7 +117,7 @@ class PollHandler(AbstractPollHandler):
                 values[label] = score
             results = [values[k] for k in self.OPTIONS]
             logger.info("Results: %s", results)
-            total = round(sum([r * (5 - i) for i, r in enumerate(results)]), 2)
+            total = round(sum(r * (5 - i) for i, r in enumerate(results)), 2)
             return total
         except Exception:
             logger.error(

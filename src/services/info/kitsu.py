@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://kitsu.io/anime/{slug}"
-    _show_link_matcher = r"https?://kitsu\.io/anime/([a-zA-Z0-9-]+)"
-    _season_url = "https://kitsu.io/api/edge/anime?filter[year]={year}&filter[season]={season}&filter[subtype]=tv&page[limit]=20"
+    _show_link_matcher = re.compile(r"https?://kitsu\.io/anime/([a-zA-Z0-9-]+)", re.I)
+    _season_url = (
+        "https://kitsu.io/api/edge/anime"
+        "?filter[year]={year}&filter[season]={season}&filter[subtype]=tv&page[limit]=20"
+    )
 
     _api_base = "https:///kitsu.io/api/edge/anime"
 
@@ -27,7 +30,7 @@ class InfoHandler(AbstractInfoHandler):
         return self._show_link_base.format(slug=link.site_key)
 
     def extract_show_id(self, url: str) -> str | None:
-        if match := re.match(self._show_link_matcher, url, re.I):
+        if match := self._show_link_matcher.match(url):
             return match.group(1)
         return None
 
@@ -82,7 +85,6 @@ class InfoHandler(AbstractInfoHandler):
         # 	return []
 
         # Parse data
-        # TODO
         return []
 
     def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
@@ -93,7 +95,6 @@ class InfoHandler(AbstractInfoHandler):
         # 	return []
 
         # shows: list[Show] = []
-        # TODO
 
         # return shows
         return []
@@ -102,7 +103,7 @@ class InfoHandler(AbstractInfoHandler):
         # logger.debug("Getting show info for %s", show_id)
 
         # Request show data from Kitsu
-        # url = self._api_base + "?filter[slug]=" + show_id + "&fields[anime]=titles,abbreviatedTitles"
+        # url = f"{self._api_base}?filter[slug]={show_id}&fields[anime]=titles,abbreviatedTitles"
         # response = self._site_request(url, **kwargs)
         # if not response:
         # 	logger.error("Cannot get show data")

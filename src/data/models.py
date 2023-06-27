@@ -104,7 +104,7 @@ class Episode:
 class EpisodeScore:
     show_id: int
     episode: int
-    site_id: int
+    site_id: int = 0
     score: float = 0
 
 

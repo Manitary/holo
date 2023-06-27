@@ -53,7 +53,6 @@ class InfoHandler(AbstractInfoHandler):
         # 	return list()
 
         # Parse page
-        # TODO
         return []
 
     def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:

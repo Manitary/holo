@@ -111,9 +111,9 @@ class DatabaseDatabase(sqlite3.Connection):
     def setup_tables(self) -> None:
         self.execute(
             """CREATE TABLE IF NOT EXISTS ShowTypes (
-			id		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-			key		TEXT NOT NULL
-		)"""
+                id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+                key TEXT NOT NULL
+            )"""
         )
         self.executemany(
             "INSERT OR IGNORE INTO ShowTypes (id, key) VALUES (?, ?)",
@@ -122,131 +122,131 @@ class DatabaseDatabase(sqlite3.Connection):
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Shows (
-			id		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-			name		TEXT NOT NULL,
-			name_en		TEXT,
-			length		INTEGER,
-			type		INTEGER NOT NULL,
-			has_source	INTEGER NOT NULL DEFAULT 0,
-			is_nsfw		INTEGER NOT NULL DEFAULT 0,
-			enabled		INTEGER NOT NULL DEFAULT 1,
-			delayed		INTEGER NOT NULL DEFAULT 0,
-			FOREIGN KEY(type) REFERENCES ShowTypes(id)
-		)"""
+                id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+                name        TEXT NOT NULL,
+                name_en     TEXT,
+                length      INTEGER,
+                type        INTEGER NOT NULL,
+                has_source  INTEGER NOT NULL DEFAULT 0,
+                is_nsfw     INTEGER NOT NULL DEFAULT 0,
+                enabled     INTEGER NOT NULL DEFAULT 1,
+                delayed     INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY(type) REFERENCES ShowTypes(id)
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS ShowNames (
-			show		INTEGER NOT NULL,
-			name		TEXT NOT NULL
-		)"""
+                show    INTEGER NOT NULL,
+                name    TEXT NOT NULL
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Aliases (
-			show		INTEGER NOT NULL,
-			alias		TEXT NOT NULL,
-			FOREIGN KEY(show) REFERENCES Shows(id),
-			UNIQUE(show, alias) ON CONFLICT IGNORE
-		)"""
+                show    INTEGER NOT NULL,
+                alias   TEXT NOT NULL,
+                FOREIGN KEY(show) REFERENCES Shows(id),
+                UNIQUE(show, alias) ON CONFLICT IGNORE
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Services (
-			id		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-			key		TEXT NOT NULL UNIQUE,
-			name		TEXT NOT NULL,
-			enabled		INTEGER NOT NULL DEFAULT 0,
-			use_in_post	INTEGER NOT NULL DEFAULT 1
-		)"""
+                id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+                key         TEXT NOT NULL UNIQUE,
+                name        TEXT NOT NULL,
+                enabled     INTEGER NOT NULL DEFAULT 0,
+                use_in_post INTEGER NOT NULL DEFAULT 1
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Streams (
-			id			INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-			service		TEXT NOT NULL,
-			show		INTEGER,
-			show_id		TEXT,
-			show_key	TEXT NOT NULL,
-			name		TEXT,
-			remote_offset	INTEGER NOT NULL DEFAULT 0,
-			display_offset	INTEGER NOT NULL DEFAULT 0,
-			active		INTEGER NOT NULL DEFAULT 1,
-			FOREIGN KEY(service) REFERENCES Services(id),
-			FOREIGN KEY(show) REFERENCES Shows(id)
-		)"""
+                id              INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+                service         TEXT NOT NULL,
+                show            INTEGER,
+                show_id         TEXT,
+                show_key        TEXT NOT NULL,
+                name            TEXT,
+                remote_offset   INTEGER NOT NULL DEFAULT 0,
+                display_offset  INTEGER NOT NULL DEFAULT 0,
+                active          INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY(service) REFERENCES Services(id),
+                FOREIGN KEY(show) REFERENCES Shows(id)
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Episodes (
-			show		INTEGER NOT NULL,
-			episode		INTEGER NOT NULL,
-			post_url	TEXT,
-                        UNIQUE(show, episode) ON CONFLICT REPLACE,
-			FOREIGN KEY(show) REFERENCES Shows(id)
-		)"""
+                show        INTEGER NOT NULL,
+                episode     INTEGER NOT NULL,
+                post_url    TEXT,
+                UNIQUE(show, episode) ON CONFLICT REPLACE,
+                FOREIGN KEY(show) REFERENCES Shows(id)
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS LinkSites (
-			id		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-			key		TEXT NOT NULL UNIQUE,
-			name		TEXT NOT NULL,
-			enabled		INTEGER NOT NULL DEFAULT 1
-		)"""
+                id      INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+                key     TEXT NOT NULL UNIQUE,
+                name    TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Links (
-			show		INTEGER NOT NULL,
-			site		INTEGER NOT NULL,
-			site_key	TEXT NOT NULL,
-			FOREIGN KEY(site) REFERENCES LinkSites(id)
-			FOREIGN KEY(show) REFERENCES Shows(id)
-		)"""
+                show        INTEGER NOT NULL,
+                site        INTEGER NOT NULL,
+                site_key    TEXT NOT NULL,
+                FOREIGN KEY(site) REFERENCES LinkSites(id)
+                FOREIGN KEY(show) REFERENCES Shows(id)
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Scores (
-			show		INTEGER NOT NULL,
-			episode		INTEGER NOT NULL,
-			site		INTEGER NOT NULL,
-			score		REAL NOT NULL,
-			FOREIGN KEY(show) REFERENCES Shows(id),
-			FOREIGN KEY(site) REFERENCES LinkSites(id)
-		)"""
+                show    INTEGER NOT NULL,
+                episode INTEGER NOT NULL,
+                site    INTEGER NOT NULL,
+                score   REAL NOT NULL,
+                FOREIGN KEY(show) REFERENCES Shows(id),
+                FOREIGN KEY(site) REFERENCES LinkSites(id)
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS LiteStreams (
-			show		INTEGER NOT NULL,
-			service		TEXT,
-			service_name	TEXT NOT NULL,
-			url		TEXT,
-                        UNIQUE(show, service) ON CONFLICT REPLACE,
-			FOREIGN KEY(show) REFERENCES Shows(id)
-		)"""
+                show           INTEGER NOT NULL,
+                service         TEXT,
+                service_name    TEXT NOT NULL,
+                url             TEXT,
+                UNIQUE(show, service) ON CONFLICT REPLACE,
+                FOREIGN KEY(show) REFERENCES Shows(id)
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS PollSites (
-			id		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-			key		TEXT NOT NULL UNIQUE
-		)"""
+                id  INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+                key TEXT NOT NULL UNIQUE
+            )"""
         )
 
         self.execute(
             """CREATE TABLE IF NOT EXISTS Polls (
-			show		INTEGER NOT NULL,
-			episode		INTEGER NOT NULL,
-			poll_service	INTEGER NOT NULL,
-			poll_id		TEXT NOT NULL,
-			timestamp	INTEGER NOT NULL,
-			score		REAL,
-			FOREIGN KEY(show) REFERENCES Shows(id),
-			FOREIGN KEY(poll_service) REFERENCES PollSites(id),
-			UNIQUE(show, episode) ON CONFLICT REPLACE
-		)"""
+                show            INTEGER NOT NULL,
+                episode         INTEGER NOT NULL,
+                poll_service    INTEGER NOT NULL,
+                poll_id         TEXT NOT NULL,
+                timestamp       INTEGER NOT NULL,
+                score           REAL,
+                FOREIGN KEY(show) REFERENCES Shows(id),
+                FOREIGN KEY(poll_service) REFERENCES PollSites(id),
+                UNIQUE(show, episode) ON CONFLICT REPLACE
+            )"""
         )
 
         self.commit()
@@ -333,7 +333,11 @@ class DatabaseDatabase(sqlite3.Connection):
         service, show_key = service_tuple
         logger.debug("Getting stream for %s/%s", service, show_key)
         q = self.execute(
-            "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams WHERE service = ? AND show_key = ?",
+            """SELECT
+            id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+            FROM Streams
+            WHERE service = ?
+            AND show_key = ?""",
             (service.id, show_key),
         )
         stream = q.fetchone()
@@ -356,16 +360,22 @@ class DatabaseDatabase(sqlite3.Connection):
         if active:
             logger.debug("Getting all active streams for service %s", service.key)
             q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE service = ? AND active = 1 AND \
-							(SELECT enabled FROM Shows WHERE id = show) = 1",
+                """SELECT
+                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+                FROM Streams
+                WHERE service = ?
+                AND active = 1
+                AND (SELECT enabled FROM Shows WHERE id = show) = 1""",
                 (service.id,),
             )
         else:
             logger.debug("Getting all inactive streams for service %s", service.key)
             q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE service = ? AND active = 0",
+                """SELECT
+                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+                FROM Streams
+                WHERE service = ?
+                AND active = 0""",
                 (service.id,),
             )
         streams = list(
@@ -385,16 +395,21 @@ class DatabaseDatabase(sqlite3.Connection):
         if active:
             logger.debug("Getting all active streams for show %s", show.id)
             q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE show = ? AND active = 1 AND \
-							(SELECT enabled FROM Shows WHERE id = show) = 1",
+                """SELECT
+                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+                FROM Streams
+                WHERE show = ?
+                AND active = 1
+                AND (SELECT enabled FROM Shows WHERE id = show) = 1""",
                 (show.id,),
             )
         else:
             logger.debug("Getting all inactive streams for show %s", show.id)
             q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE show = ? AND active = 0",
+                """SELECT
+                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+                FROM Streams
+                WHERE show = ? AND active = 0""",
                 (show.id,),
             )
         streams = list(
@@ -408,8 +423,10 @@ class DatabaseDatabase(sqlite3.Connection):
     def get_unmatched_streams(self) -> list[Stream]:
         logger.debug("Getting unmatched streams")
         q = self.execute(
-            "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-                        WHERE show IS NULL"
+            """SELECT
+            id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+            FROM Streams
+            WHERE show IS NULL"""
         )
         streams = list(
             filter(
@@ -427,15 +444,20 @@ class DatabaseDatabase(sqlite3.Connection):
         if active:
             logger.debug("Getting all active streams missing show name")
             q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE (name IS NULL OR name = '') AND active = 1 AND \
-							(SELECT enabled FROM Shows WHERE id = show) = 1"
+                """SELECT
+                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+                FROM Streams
+                WHERE (name IS NULL OR name = '')
+                AND active = 1
+                AND (SELECT enabled FROM Shows WHERE id = show) = 1"""
             )
         else:
             logger.debug("Getting all inactive streams missing show name")
             q = self.execute(
-                "SELECT id, service, show, show_id, show_key, name, remote_offset, display_offset, active FROM Streams \
-							WHERE (name IS NULL OR name = '') AND active = 0"
+                """SELECT
+                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
+                FROM Streams
+                WHERE (name IS NULL OR name = '') AND active = 0"""
             )
         streams = [Stream(**stream) for stream in q.fetchall()]
         streams = list(
@@ -463,8 +485,13 @@ class DatabaseDatabase(sqlite3.Connection):
         logger.debug("Inserting stream: %s", raw_stream)
 
         service = self.get_service_from_key(key=raw_stream.service_key)
+        if not service:
+            logger.debug("Cannot get service from key: %s", raw_stream.service_key)
+            return None
         self.execute(
-            "INSERT INTO Streams (service, show, show_id, show_key, name, remote_offset, display_offset, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            """INSERT INTO Streams
+            (service, show, show_id, show_key, name, remote_offset, display_offset, active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 service.id,
                 show_id,
@@ -646,8 +673,10 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(EMPTY_LIST_SHOW)
     def get_shows_missing_length(self, enabled: bool = True) -> list[Show]:
         q = self.execute(
-            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
-				WHERE (length IS NULL OR length = '' OR length = 0) AND enabled = ?",
+            """SELECT
+            id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed
+            FROM Shows
+            WHERE (length IS NULL OR length = '' OR length = 0) AND enabled = ?""",
             (enabled,),
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
@@ -655,13 +684,18 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(EMPTY_LIST_SHOW)
     def get_shows_missing_stream(self, enabled: bool = True) -> list[Show]:
         q = self.execute(
-            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows show\
-				WHERE (SELECT count(*) FROM Streams stream, Services service \
-				       WHERE stream.show = show.id \
-				       AND stream.active = 1 \
-				       AND stream.service = service.id \
-				       AND service.enabled = 1) = 0 \
-				AND enabled = ?",
+            """SELECT
+            id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed
+            FROM Shows show
+            WHERE (
+                SELECT count(*)
+                FROM Streams stream, Services service
+                WHERE stream.show = show.id
+                AND stream.active = 1
+                AND stream.service = service.id
+                AND service.enabled = 1
+            ) = 0
+            AND enabled = ?""",
             (enabled,),
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
@@ -669,8 +703,10 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(EMPTY_LIST_SHOW)
     def get_shows_delayed(self, enabled: bool = True) -> list[Show]:
         q = self.execute(
-            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
-				WHERE delayed = 1 AND enabled = ?",
+            """SELECT
+            id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed
+            FROM Shows
+            WHERE delayed = 1 AND enabled = ?""",
             (enabled,),
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
@@ -678,8 +714,10 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(EMPTY_LIST_SHOW)
     def get_shows_by_enabled_status(self, enabled: bool) -> list[Show]:
         q = self.execute(
-            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
-				WHERE enabled = ?",
+            """SELECT
+            id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed
+            FROM Shows
+            WHERE enabled = ?""",
             (enabled,),
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
@@ -693,8 +731,10 @@ class DatabaseDatabase(sqlite3.Connection):
     @get_show.register
     def _(self, arg: int) -> Show | None:
         q = self.execute(
-            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
-			WHERE id = ?",
+            """SELECT
+            id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed
+            FROM Shows
+            WHERE id = ?""",
             (arg,),
         )
         show = q.fetchone()
@@ -713,8 +753,10 @@ class DatabaseDatabase(sqlite3.Connection):
         # logger.debug("Getting show from database")
 
         q = self.execute(
-            "SELECT id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed FROM Shows \
-			WHERE name = ?",
+            """SELECT
+            id, name, name_en, length, type AS show_type, has_source, is_nsfw, enabled, delayed
+            FROM Shows
+            WHERE name = ?""",
             (name,),
         )
         show = q.fetchone()
@@ -738,7 +780,9 @@ class DatabaseDatabase(sqlite3.Connection):
         has_source = raw_show.has_source
         is_nsfw = raw_show.is_nsfw
         show_id = self.execute(
-            "INSERT INTO Shows (name, name_en, length, type, has_source, is_nsfw) VALUES (?, ?, ?, ?, ?, ?)",
+            """INSERT INTO Shows
+            (name, name_en, length, type, has_source, is_nsfw)
+            VALUES (?, ?, ?, ?, ?, ?)""",
             (name, name_en, length, show_type, has_source, is_nsfw),
         ).lastrowid
         self.add_show_names(
@@ -839,7 +883,11 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(None)
     def get_latest_episode(self, show: Show) -> Episode | None:
         q = self.execute(
-            "SELECT episode AS number, post_url AS link FROM Episodes WHERE show = ? ORDER BY episode DESC LIMIT 1",
+            """SELECT episode AS number, post_url AS link
+            FROM Episodes
+            WHERE show = ?
+            ORDER BY episode DESC
+            LIMIT 1""",
             (show.id,),
         )
         data = q.fetchone()
@@ -950,7 +998,9 @@ class DatabaseDatabase(sqlite3.Connection):
     ) -> None:
         timestamp = int(datetime.now(timezone.utc).timestamp())
         self.execute(
-            "INSERT INTO Polls (show, episode, poll_service, poll_id, timestamp) VALUES (?, ?, ?, ?, ?)",
+            """INSERT INTO Polls
+            (show, episode, poll_service, poll_id, timestamp)
+            VALUES (?, ?, ?, ?, ?)""",
             (show.id, episode.number, site.id, poll_id, timestamp),
         )
         if commit:
@@ -968,7 +1018,11 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(None)
     def get_poll(self, show: Show, episode: Episode) -> Poll | None:
         q = self.execute(
-            "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE show = ? AND episode = ?",
+            """SELECT
+            show AS show_id, episode, poll_service AS service,
+            poll_id AS id, timestamp AS date, score
+            FROM Polls
+            WHERE show = ? AND episode = ?""",
             (show.id, episode.number),
         )
         poll = q.fetchone()
@@ -979,7 +1033,11 @@ class DatabaseDatabase(sqlite3.Connection):
     @db_error_default(EMPTY_LIST_POLL)
     def get_polls_missing_score(self) -> list[Poll]:
         q = self.execute(
-            "SELECT show AS show_id, episode, poll_service AS service, poll_id AS id, timestamp AS date, score FROM Polls WHERE score is NULL AND show IN (SELECT id FROM Shows where enabled = 1)"
+            """SELECT
+            show AS show_id, episode, poll_service AS service,
+            poll_id AS id, timestamp AS date, score
+            FROM Polls
+            WHERE score is NULL AND show IN (SELECT id FROM Shows where enabled = 1)"""
         )
         return [Poll(**poll) for poll in q.fetchall()]
 
@@ -1056,8 +1114,10 @@ _romanization_o = re.compile("\bwo\b")
 
 
 def _alphanum_convert(s: str) -> str:
-    # TODO: punctuation is important for some shows to distinguish between seasons (ex. K-On! and K-On!!)
-    # 6/28/16: The purpose of this function is weak collation; use of punctuation to distinguish between seasons can be done later when handling multiple found shows.
+    # TODO: punctuation is sometimes important to distinguish between seasons (ex. K-On! and K-On!!)
+    # 6/28/16: The purpose of this function is weak collation;
+    # use of punctuation to distinguish between seasons
+    # can be done later when handling multiple found shows.
 
     # Characters to words
     s = s.replace("&", "and")

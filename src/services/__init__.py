@@ -194,8 +194,8 @@ class Requestable:
         logger.debug("Returning response as RSS feed")
         if not response:
             return None
-        rss: feedparser.FeedParserDict = feedparser.parse(response.text)
-        return rss
+        rss: feedparser.FeedParserDict = feedparser.parse(response.text)  # type:ignore
+        return rss  # type:ignore
 
     def request_text(self, url: str, **kwargs: Any) -> str | None:
         response = self.request(url=url, **kwargs)

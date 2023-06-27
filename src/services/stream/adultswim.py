@@ -80,8 +80,9 @@ class ServiceHandler(AbstractServiceHandler):
         if not response:
             logger.error("Cannot get feed")
             return None
-
-        stream.name = response.find("h1", itemprop="name").text
+        name_tag = response.find("h1", itemprop="name")
+        if isinstance(name_tag, Tag):
+            stream.name = name_tag.text
         return stream
 
     def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
