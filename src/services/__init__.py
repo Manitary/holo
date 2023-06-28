@@ -9,7 +9,7 @@ from enum import StrEnum
 from functools import lru_cache, wraps
 from json import JSONDecodeError
 from time import perf_counter, sleep
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Iterable, ParamSpec, TypeVar
 from xml.etree import ElementTree as xml_parser
 
 import feedparser
@@ -83,14 +83,14 @@ def import_services(
 
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
-
-def rate_limit(wait_length: float) -> Callable[[Callable[..., T]], Callable[..., T]]:
+def rate_limit(wait_length: float) -> Callable[[Callable[P, T]], Callable[P, T]]:
     last_time = 0
 
-    def decorate(f: Callable[..., T]) -> Callable[..., T]:
+    def decorate(f: Callable[P, T]) -> Callable[P, T]:
         @wraps(wrapped=f)
-        def rate_limited(*args: Any, **kwargs: Any) -> T:
+        def rate_limited(*args: P.args, **kwargs: P.kwargs) -> T:
             nonlocal last_time
             diff = perf_counter() - last_time
             if diff < wait_length:

@@ -5,7 +5,7 @@ import re
 import sqlite3
 from datetime import datetime, timezone
 from functools import lru_cache, singledispatchmethod, wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, ParamSpec, TypeVar
 
 from unidecode import unidecode
 
@@ -29,6 +29,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
 T = TypeVar("T")
 T0 = TypeVar("T0")
 
@@ -66,9 +67,9 @@ def dict_factory(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict[str, Any]:
 # Database
 
 
-def db_error(f: Callable[..., Any]) -> Callable[..., bool]:
+def db_error(f: Callable[P, Any]) -> Callable[P, bool]:
     @wraps(f)
-    def protected(*args: Any, **kwargs: Any) -> bool:
+    def protected(*args: P.args, **kwargs: P.kwargs) -> bool:
         try:
             f(*args, **kwargs)
             return True
@@ -81,12 +82,12 @@ def db_error(f: Callable[..., Any]) -> Callable[..., bool]:
 
 def db_error_default(
     default_value: T0,
-) -> Callable[[Callable[..., T]], Callable[..., T | T0]]:
+) -> Callable[[Callable[P, T]], Callable[P, T | T0]]:
     value = default_value
 
-    def decorate(f: Callable[..., T]) -> Callable[..., T | T0]:
+    def decorate(f: Callable[P, T]) -> Callable[P, T | T0]:
         @wraps(wrapped=f)
-        def protected(*args: Any, **kwargs: Any) -> T | T0:
+        def protected(*args: P.args, **kwargs: P.kwargs) -> T | T0:
             nonlocal value
             try:
                 return f(*args, **kwargs)
