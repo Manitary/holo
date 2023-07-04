@@ -5,7 +5,6 @@ config_secret.ini
 *.sqlite-journal
 *.sqlite-backup
 *.sqlite.bkp*
-*.sql
 oauth_store.txt
 logs/
 
