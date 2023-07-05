@@ -185,7 +185,7 @@ def _record_poll_scores(
         if timedelta(days=8) < datetime.now() - poll.date < timedelta(days=93):
             score = handler.get_score(poll)
             logger.info(
-                "Updating poll score for show %s / episode %d (%f)",
+                "Updating poll score for show %s / episode %d (%s)",
                 poll.show_id,
                 poll.episode,
                 score,
