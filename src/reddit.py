@@ -22,6 +22,11 @@ class RedditHolo:
         self._subreddit: Subreddit = self._reddit.subreddit(config.subreddit)
         self._post_flair_id: str = config.post_flair_id
         self._post_flair_text: str = config.post_flair_text
+        self._max_episodes: int = config.max_episodes
+
+    @property
+    def max_episodes(self) -> int:
+        return self._max_episodes
 
     @property
     def subreddit(self) -> str:

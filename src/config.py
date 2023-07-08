@@ -48,6 +48,7 @@ class Config:
     batch_thread_post_title_with_en: str = ""
     batch_thread_post_body: str = ""
     post_formats: dict[str, str] = field(default_factory=dict)
+    max_episodes: int = 5
 
     @classmethod
     def from_file(cls, file_path: str) -> Self:
@@ -78,6 +79,7 @@ class Config:
             config.r_password = sec.get("password", "")
             config.r_oauth_key = sec.get("oauth_key", "")
             config.r_oauth_secret = sec.get("oauth_secret", "")
+            config.max_episodes = sec.getint("max_posts", 5)
 
         if "options" in parsed:
             sec = parsed["options"]

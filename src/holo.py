@@ -36,6 +36,7 @@ class ParserArguments:
     no_input: bool
     extra: list[str]
     output: str
+    max_episodes: int
 
 
 def holo(config: Config, args: Type[ParserArguments]) -> None:
@@ -175,6 +176,14 @@ def create_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"{NAME} v{VERSION}, {DESCRIPTION}",
     )
+    parser.add_argument(
+        "-e",
+        "--max-episodes",
+        dest="max_episodes",
+        type=int,
+        default=5,
+        help="set the maximum number of threads to post at once for a single show",
+    )
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("extra", nargs="*")
     return parser
@@ -201,6 +210,7 @@ def main() -> None:
     config.debug |= args.debug
     config.module = args.module
     config.log_dir = args.log_dir
+    config.max_episodes = args.max_episodes
     if args.db_name:
         config.database = args.db_name
     if args.subreddit:

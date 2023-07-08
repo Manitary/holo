@@ -91,6 +91,15 @@ def _process_service_streams(
             logger.info("  No episode found")
             continue
 
+        if (ep_num := len({e.number for e in episodes})) > reddit_agent.max_episodes:
+            logger.warning(
+                "Too many episodes (%s) found for show %s on stream #%s",
+                ep_num,
+                show.name,
+                stream.service,
+            )
+            continue
+
         for episode in sorted(episodes, key=lambda e: e.number):
             submitter.set_data(show=show, episode=episode, stream=stream)
             if _process_new_episode(submitter, reddit_agent):
