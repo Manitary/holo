@@ -229,7 +229,7 @@ def main() -> None:
                     log_file, when="midnight", backupCount=7, encoding="UTF-8"
                 )
             ],
-            format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            format="%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             level=logging.DEBUG if config.debug else logging.INFO,
         )
