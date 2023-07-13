@@ -165,13 +165,13 @@ class DatabaseDatabase(sqlite3.Connection):
     # Services
     @db_error_default(None)
     @lru_cache(10)
-    def get_service_from_id(self, id: int | None = None) -> Service | None:
-        if not id:
+    def get_service_from_id(self, service_id: int | None = None) -> Service | None:
+        if not service_id:
             logger.error("ID or key required to get service")
             return None
         q = self.execute(
             "SELECT id, key, name, enabled, use_in_post FROM Services WHERE id = ?",
-            (id,),
+            (service_id,),
         )
         return Service(**q.fetchone())
 
@@ -222,8 +222,8 @@ class DatabaseDatabase(sqlite3.Connection):
         return self._make_stream_from_query(stream)
 
     @db_error_default(EMPTY_LIST_STREAM)
-    def get_streams_for_service(
-        self, service: Service | None = None, active: bool = True
+    def get_active_streams_for_service(
+        self, service: Service | None = None
     ) -> list[Stream]:
         if not service:
             logger.error("A service must be provided to get streams")
@@ -232,27 +232,18 @@ class DatabaseDatabase(sqlite3.Connection):
         if not service:
             logger.error("Could not get service from its own key")
             return []
-        if active:
-            logger.debug("Getting all active streams for service %s", service.key)
-            q = self.execute(
-                """SELECT
-                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
-                FROM Streams
-                WHERE service = ?
-                AND active = 1
-                AND (SELECT enabled FROM Shows WHERE id = show) = 1""",
-                (service.id,),
-            )
-        else:
-            logger.debug("Getting all inactive streams for service %s", service.key)
-            q = self.execute(
-                """SELECT
-                id, service, show, show_id, show_key, name, remote_offset, display_offset, active
-                FROM Streams
-                WHERE service = ?
-                AND active = 0""",
-                (service.id,),
-            )
+
+        logger.debug("Getting all active streams for service %s", service.key)
+        q = self.execute(
+            """SELECT
+            st.id, st.service, st.show, st.show_id, st.show_key,
+            st.name, st.remote_offset, st.display_offset, st.active
+            FROM Streams st JOIN Shows sh ON st.show = sh.id
+            WHERE st.service = ?
+            AND st.active = 1
+            AND sh.enabled = 1""",
+            (service.id,),
+        )
         streams = list(
             filter(
                 None, [self._make_stream_from_query(stream) for stream in q.fetchall()]
@@ -385,7 +376,7 @@ class DatabaseDatabase(sqlite3.Connection):
     def update_stream(
         self,
         stream: Stream,
-        show: Show | None = None,
+        show: int | None = None,
         active: bool | int | None = None,
         name: str | None = None,
         show_id: int | None = None,
@@ -438,7 +429,7 @@ class DatabaseDatabase(sqlite3.Connection):
 
     @db_error
     def add_lite_stream(
-        self, show: Show, service: Service, service_name: str, url: str
+        self, show: int | None, service: str, service_name: str, url: str
     ) -> None:
         logger.debug("Inserting lite stream %s (%s) for show %s", service, url, show)
         self.execute(
@@ -449,12 +440,12 @@ class DatabaseDatabase(sqlite3.Connection):
 
     # Links
     @db_error_default(None)
-    def get_link_site_from_id(self, id: str | None = None) -> LinkSite | None:
-        if not id:
+    def get_link_site_from_id(self, site_id: str | None = None) -> LinkSite | None:
+        if not site_id:
             logger.error("ID required to get link site")
             return None
         q = self.execute(
-            "SELECT id, key, name, enabled FROM LinkSites WHERE id = ?", (id,)
+            "SELECT id, key, name, enabled FROM LinkSites WHERE id = ?", (site_id,)
         )
         site = q.fetchone()
         if not site:
@@ -661,7 +652,7 @@ class DatabaseDatabase(sqlite3.Connection):
             (name, name_en, length, show_type, has_source, is_nsfw),
         ).lastrowid
         self.add_show_names(
-            raw_show.name, *raw_show.more_names, id=show_id, commit=commit
+            raw_show.name, *raw_show.more_names, show_id=show_id, commit=commit
         )
 
         if commit:
@@ -705,11 +696,11 @@ class DatabaseDatabase(sqlite3.Connection):
 
     @db_error
     def add_show_names(
-        self, *names: str, id: int | None = None, commit: bool = True
+        self, *names: str, show_id: int | None = None, commit: bool = True
     ) -> None:
         self.executemany(
             "INSERT INTO ShowNames (show, name) VALUES (?, ?)",
-            [(id, name) for name in names],
+            [(show_id, name) for name in names],
         )
         if commit:
             self.commit()
@@ -848,10 +839,12 @@ class DatabaseDatabase(sqlite3.Connection):
 
     @db_error_default(None)
     def get_poll_site(
-        self, id: str | None = None, key: str | None = None
+        self, poll_site_id: str | None = None, key: str | None = None
     ) -> PollSite | None:
-        if id:
-            q = self.execute("SELECT id, key FROM PollSites WHERE id = ?", (id,))
+        if poll_site_id:
+            q = self.execute(
+                "SELECT id, key FROM PollSites WHERE id = ?", (poll_site_id,)
+            )
         elif key:
             q = self.execute("SELECT id, key FROM PollSites WHERE key = ?", (key,))
         else:

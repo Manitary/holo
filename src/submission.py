@@ -199,7 +199,7 @@ class SubmissionBuilder:
         return "*None*"
 
     def _gen_text_stream(self, stream: Stream) -> str | None:
-        service = self.db.get_service_from_id(id=stream.service)
+        service = self.db.get_service_from_id(stream.service)
         if not (service and service.enabled and service.use_in_post):
             return None
         stream_handler = self.services.streams.get(service.key, None)
@@ -217,7 +217,7 @@ class SubmissionBuilder:
         link_texts: list[str] = []
         link_texts_bottom: list[str] = []  # for links that come last
         for link in links:
-            site = self.db.get_link_site_from_id(id=link.site)
+            site = self.db.get_link_site_from_id(link.site)
             if not (site and site.enabled):
                 continue
             link_handler = self.services.infos.get(site.key, None)

@@ -95,7 +95,7 @@ def _check_missing_stream_info(
 
     streams = db.get_streams_missing_name()
     for stream in streams:
-        service_info = db.get_service_from_id(id=stream.service)
+        service_info = db.get_service_from_id(stream.service)
         if not service_info:
             continue
         logger.info(

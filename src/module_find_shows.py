@@ -285,7 +285,7 @@ def match_show_streams(
             show_id = shows.pop()
             if update_db:
                 db.update_stream(stream, show=show_id, active=True)
-                db.add_show_names(stream.name, id=show_id, commit=False)
+                db.add_show_names(stream.name, show_id=show_id, commit=False)
             streams.remove(stream)
 
         if update_db:

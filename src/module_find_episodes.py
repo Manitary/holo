@@ -24,7 +24,7 @@ def main(config: Config, db: DatabaseDatabase, handlers: Handlers) -> None:
         if not service_handler:
             continue
 
-        streams = db.get_streams_for_service(service=service)
+        streams = db.get_active_streams_for_service(service=service)
         logger.debug("%d streams found", len(streams))
 
         for show, episode in _process_service_streams(
