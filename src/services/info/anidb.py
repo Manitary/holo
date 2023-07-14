@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 class InfoHandler(AbstractInfoHandler):
     _show_link_base = "https://anidb.net/perl-bin/animedb.pl?show=anime&aid={id}"
     _show_link_matcher = re.compile(
-        r"https?://anidb\\.net/a([0-9]+)"
-        r"|https?://anidb\\.net/perl-bin/animedb\\.pl\\?(?:[^/]+&)aid=([0-9]+)"
-        r"|https?://anidb\\.net/anime/([0-9]+)",
+        r"https?://anidb\.net/a([0-9]+)"
+        r"|https?://anidb\.net/perl-bin/animedb\.pl\?(?:[^/]+&)aid=([0-9]+)"
+        r"|https?://anidb\.net/anime/([0-9]+)",
         re.I,
     )
     _season_url = (
