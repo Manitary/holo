@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
 import logging
 import re
 import sqlite3
 from datetime import datetime, timezone
 from functools import lru_cache, singledispatchmethod, wraps
-from typing import Any, Callable, ParamSpec, TypeVar
+from pathlib import Path
+from typing import Any, Callable, ParamSpec, TypeVar, cast
 
 from unidecode import unidecode
 
@@ -35,18 +35,6 @@ QUERY_PATH = Path() / "src" / "data"
 P = ParamSpec("P")
 T = TypeVar("T")
 T0 = TypeVar("T0")
-
-EMPTY_LIST_SERVICE: list[Service] = []
-EMPTY_LIST_STREAM: list[Stream] = []
-EMPTY_LIST_LITESTREAM: list[LiteStream] = []
-EMPTY_LIST_LINK: list[Link] = []
-EMPTY_LIST_LINKSITE: list[LinkSite] = []
-EMPTY_LIST_SHOW: list[Show] = []
-EMPTY_LIST_STRING: list[str] = []
-EMPTY_LIST_EPISODE: list[Episode] = []
-EMPTY_LIST_EPISODESCORE: list[EpisodeScore] = []
-EMPTY_LIST_POLL: list[Poll] = []
-EMPTY_SET_INT: set[int] = set()
 
 
 def living_in(the_database: str) -> DatabaseDatabase | None:
@@ -187,7 +175,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return Service(**q.fetchone())
 
-    @db_error_default(EMPTY_LIST_SERVICE)
+    @db_error_default(cast(list[Service], []))
     def get_services(self, enabled: bool = True) -> list[Service]:
         services: list[Service] = []
         q = self.execute(
@@ -221,7 +209,7 @@ class DatabaseDatabase(sqlite3.Connection):
             return None
         return self._make_stream_from_query(stream)
 
-    @db_error_default(EMPTY_LIST_STREAM)
+    @db_error_default(cast(list[Stream], []))
     def get_active_streams_for_service(
         self, service: Service | None = None
     ) -> list[Stream]:
@@ -251,7 +239,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return streams
 
-    @db_error_default(EMPTY_LIST_STREAM)
+    @db_error_default(cast(list[Stream], []))
     def get_streams_for_show(
         self, show: Show | None = None, active: bool = True
     ) -> list[Stream]:
@@ -285,7 +273,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return streams
 
-    @db_error_default(EMPTY_LIST_STREAM)
+    @db_error_default(cast(list[Stream], []))
     def get_unmatched_streams(self) -> list[Stream]:
         logger.debug("Getting unmatched streams")
         q = self.execute(
@@ -301,7 +289,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return streams
 
-    @db_error_default(EMPTY_LIST_STREAM)
+    @db_error_default(cast(list[Stream], []))
     def get_streams_missing_name(
         self,
         active: bool = True,
@@ -411,7 +399,7 @@ class DatabaseDatabase(sqlite3.Connection):
             self.commit()
 
     # Infos
-    @db_error_default(EMPTY_LIST_LITESTREAM)
+    @db_error_default(cast(list[LiteStream], []))
     def get_lite_streams_from_show(
         self,
         show: Show | None = None,
@@ -465,7 +453,7 @@ class DatabaseDatabase(sqlite3.Connection):
             return None
         return LinkSite(**site)
 
-    @db_error_default(EMPTY_LIST_LINKSITE)
+    @db_error_default(cast(list[LinkSite], []))
     def get_link_sites(self, enabled: bool = True) -> list[LinkSite]:
         q = self.execute(
             "SELECT id, key, name, enabled FROM LinkSites WHERE enabled = ?",
@@ -473,7 +461,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return [LinkSite(**link) for link in q.fetchall()]
 
-    @db_error_default(EMPTY_LIST_LINK)
+    @db_error_default(cast(list[Link], []))
     def get_links(self, show: Show | None = None) -> list[Link]:
         if not show:
             logger.error("A show must be provided to get links")
@@ -536,7 +524,7 @@ class DatabaseDatabase(sqlite3.Connection):
             self.commit()
 
     # Shows
-    @db_error_default(EMPTY_LIST_SHOW)
+    @db_error_default(cast(list[Show], []))
     def get_shows_missing_length(self, enabled: bool = True) -> list[Show]:
         q = self.execute(
             """SELECT
@@ -547,7 +535,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
 
-    @db_error_default(EMPTY_LIST_SHOW)
+    @db_error_default(cast(list[Show], []))
     def get_shows_missing_stream(self, enabled: bool = True) -> list[Show]:
         q = self.execute(
             """SELECT
@@ -566,7 +554,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
 
-    @db_error_default(EMPTY_LIST_SHOW)
+    @db_error_default(cast(list[Show], []))
     def get_shows_delayed(self, enabled: bool = True) -> list[Show]:
         q = self.execute(
             """SELECT
@@ -577,7 +565,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return [self._make_show_from_query(show) for show in q.fetchall()]
 
-    @db_error_default(EMPTY_LIST_SHOW)
+    @db_error_default(cast(list[Show], []))
     def get_shows_by_enabled_status(self, enabled: bool) -> list[Show]:
         q = self.execute(
             """SELECT
@@ -630,7 +618,7 @@ class DatabaseDatabase(sqlite3.Connection):
             return None
         return self._make_show_from_query(show)
 
-    @db_error_default(EMPTY_LIST_STRING)
+    @db_error_default(cast(list[str], []))
     def get_aliases(self, show: Show) -> list[str]:
         q = self.execute("SELECT alias FROM Aliases WHERE show = ?", (show.id,))
         return [s["alias"] for s in q.fetchall()]
@@ -772,7 +760,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         self.commit()
 
-    @db_error_default(EMPTY_LIST_EPISODE)
+    @db_error_default(cast(list[Episode], []))
     def get_episodes(self, show: Show, ensure_sorted: bool = True) -> list[Episode]:
         q = self.execute(
             "SELECT episode AS number, post_url AS link FROM Episodes WHERE show = ?",
@@ -784,7 +772,7 @@ class DatabaseDatabase(sqlite3.Connection):
         return episodes
 
     # Scores
-    @db_error_default(EMPTY_LIST_EPISODESCORE)
+    @db_error_default(cast(list[EpisodeScore], []))
     def get_show_scores(self, show: Show) -> list[EpisodeScore]:
         q = self.execute(
             "SELECT episode, site AS site_id, score FROM Scores WHERE show=?",
@@ -792,7 +780,7 @@ class DatabaseDatabase(sqlite3.Connection):
         )
         return [EpisodeScore(show_id=show.id, **s) for s in q.fetchall()]
 
-    @db_error_default(EMPTY_LIST_EPISODESCORE)
+    @db_error_default(cast(list[EpisodeScore], []))
     def get_episode_scores(self, show: Show, episode: Episode) -> list[EpisodeScore]:
         q = self.execute(
             "SELECT site AS site_id, score FROM Scores WHERE show=? AND episode=?",
@@ -898,7 +886,7 @@ class DatabaseDatabase(sqlite3.Connection):
             return None
         return Poll(**poll)
 
-    @db_error_default(EMPTY_LIST_POLL)
+    @db_error_default(cast(list[Poll], []))
     def get_polls_missing_score(self) -> list[Poll]:
         q = self.execute(
             """SELECT
@@ -910,7 +898,7 @@ class DatabaseDatabase(sqlite3.Connection):
         return [Poll(**poll) for poll in q.fetchall()]
 
     # Searching
-    @db_error_default(EMPTY_SET_INT)
+    @db_error_default(cast(set[int], set()))
     def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[int]:
         shows: set[int] = set()
         for name in names:
