@@ -333,6 +333,33 @@ class DatabaseDatabase(sqlite3.Connection):
         return q.fetchone()["count(*)"] > 0
 
     @db_error
+    def add_stream_(
+        self,
+        raw_stream: UnprocessedStream,
+        service_id: int,
+        show_id: int,
+        commit: bool = True,
+    ) -> None:
+        logger.debug("Inserting stream: %s", raw_stream)
+        self.execute(
+            """
+            INSERT INTO Streams (service, show, show_key, remote_offset)
+            VALUES (:service_id, :show_id, :show_key, :remote_offset)
+            ON CONFLICT(service, show) DO UPDATE SET
+                show_key = :show_key,
+                remote_offset = :remote_offset
+            """,
+            {
+                "service_id": service_id,
+                "show_id": show_id,
+                "show_key": raw_stream.show_key,
+                "remote_offset": raw_stream.remote_offset,
+            },
+        )
+        if commit:
+            self.commit()
+
+    @db_error
     def add_stream(
         self, raw_stream: UnprocessedStream, show_id: int | None, commit: bool = True
     ) -> None:
@@ -341,7 +368,7 @@ class DatabaseDatabase(sqlite3.Connection):
         service = self.get_service_from_key(key=raw_stream.service_key)
         if not service:
             logger.debug("Cannot get service from key: %s", raw_stream.service_key)
-            return None
+            return
         self.execute(
             """INSERT INTO Streams
             (service, show, show_id, show_key, name, remote_offset, display_offset, active)
@@ -417,7 +444,7 @@ class DatabaseDatabase(sqlite3.Connection):
 
     @db_error
     def add_lite_stream(
-        self, show: int | None, service: str, service_name: str, url: str
+        self, show: int, service: str, service_name: str, url: str
     ) -> None:
         logger.debug("Inserting lite stream %s (%s) for show %s", service, url, show)
         self.execute(
@@ -503,6 +530,22 @@ class DatabaseDatabase(sqlite3.Connection):
                 (site.id, key),
             )
         return q.fetchone()["count(*)"] > 0
+
+    @db_error
+    def add_link_(
+        self, show_id: int, show_key: str, site_key: str, commit: bool = True
+    ) -> None:
+        logger.debug("Inserting link: %s/%s/%s", site_key, show_id, show_key)
+        site = self.get_link_site_from_key(key=site_key)
+        if not site:
+            logger.error('  Invalid site "%s"', site_key)
+            return
+        self.execute(
+            "INSERT INTO Links (show, site, site_key) VALUES (?, ?, ?)",
+            (show_id, site.id, show_key),
+        )
+        if commit:
+            self.commit()
 
     @db_error
     def add_link(
@@ -623,72 +666,70 @@ class DatabaseDatabase(sqlite3.Connection):
         q = self.execute("SELECT alias FROM Aliases WHERE show = ?", (show.id,))
         return [s["alias"] for s in q.fetchall()]
 
-    @db_error_default(None)
-    def add_show(self, raw_show: UnprocessedShow, commit: bool = True) -> int | None:
+    @db_error_default(0)
+    def add_show(self, raw_show: UnprocessedShow, commit: bool = True) -> int:
         logger.debug("Inserting show: %s", raw_show)
-
-        name = raw_show.name
-        name_en = raw_show.name_en
-        length = raw_show.episode_count
-        show_type = from_show_type(raw_show.show_type)
-        has_source = raw_show.has_source
-        is_nsfw = raw_show.is_nsfw
         show_id = self.execute(
             """INSERT INTO Shows
             (name, name_en, length, type, has_source, is_nsfw)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (name, name_en, length, show_type, has_source, is_nsfw),
+            VALUES (:name, :name_en, :length, :type, :has_source, :is_nsfw)""",
+            {
+                "name": raw_show.name,
+                "name_en": raw_show.name_en or None,
+                "length": raw_show.episode_count,
+                "type": from_show_type(raw_show.show_type),
+                "has_source": raw_show.has_source,
+                "is_nsfw": raw_show.is_nsfw,
+            },
         ).lastrowid
+        if not show_id:
+            logger.error("Insert query not executed, cannot get show id")
+            return 0
         self.add_show_names(
             raw_show.name, *raw_show.more_names, show_id=show_id, commit=commit
         )
-
         if commit:
             self.commit()
         return show_id
 
-    @db_error
-    def add_alias(self, show_id: int, alias: str, commit: bool = True) -> None:
-        self.execute(
-            "INSERT INTO Aliases (show, alias) VALUES (?, ?)", (show_id, alias)
-        )
-        if commit:
-            self.commit()
-
     @db_error_default(None)
     def update_show(
-        self, show_id: str, raw_show: UnprocessedShow, commit: bool = True
+        self, show_id: int, raw_show: UnprocessedShow, commit: bool = True
     ) -> None:
         logger.debug("Updating show: %s", raw_show.name)
-
-        # name = raw_show.name
-        name_en = raw_show.name_en
-        length = raw_show.episode_count
-        show_type = from_show_type(raw_show.show_type)
-        has_source = raw_show.has_source
-        is_nsfw = raw_show.is_nsfw
-
-        if name_en:
-            self.execute(
-                "UPDATE Shows SET name_en = ? WHERE id = ?", (name_en, show_id)
-            )
-        if length:
-            self.execute("UPDATE Shows SET length = ? WHERE id = ?", (length, show_id))
         self.execute(
-            "UPDATE Shows SET type = ?, has_source = ?, is_nsfw = ? WHERE id = ?",
-            (show_type, has_source, is_nsfw, show_id),
+            """
+            UPDATE Shows
+            SET name_en = :name_en, length = :length, type = :type,
+            has_source = :has_source, is_nsfw = :is_nsfw
+            WHERE id = :id
+            """,
+            {
+                "name_en": raw_show.name_en or None,
+                "length": raw_show.episode_count,
+                "type": from_show_type(raw_show.show_type),
+                "has_source": raw_show.has_source,
+                "is_nsfw": raw_show.is_nsfw,
+                "id": show_id,
+            },
         )
-
         if commit:
             self.commit()
 
     @db_error
-    def add_show_names(
-        self, *names: str, show_id: int | None = None, commit: bool = True
-    ) -> None:
+    def add_aliases(self, show_id: int, *aliases: str, commit: bool = True) -> None:
+        self.executemany(
+            "INSERT INTO Aliases (show, alias) VALUES (?, ?)",
+            ((show_id, alias) for alias in aliases),
+        )
+        if commit:
+            self.commit()
+
+    @db_error
+    def add_show_names(self, *names: str, show_id: int, commit: bool = True) -> None:
         self.executemany(
             "INSERT INTO ShowNames (show, name) VALUES (?, ?)",
-            [(show_id, name) for name in names],
+            ((show_id, name) for name in names),
         )
         if commit:
             self.commit()
@@ -898,6 +939,26 @@ class DatabaseDatabase(sqlite3.Connection):
         return [Poll(**poll) for poll in q.fetchall()]
 
     # Searching
+    @db_error_default(0)
+    def search_show_id_by_name(self, name: str) -> int:
+        q: dict[str, int] | None = self.execute(
+            "SELECT show FROM ShowNames WHERE name = ?", (name,)
+        ).fetchone()
+        if not q:
+            logger.debug("No matching show found with name %s", name)
+            return 0
+        return q["show"]
+
+    @db_error_default(0)
+    def search_service_id_by_key(self, key: str) -> int:
+        q: dict[str, int] | None = self.execute(
+            "SELECT id FROM Services WHERE key = ?", (key,)
+        ).fetchone()
+        if not q:
+            logger.debug("No matching service found with key %s", key)
+            return 0
+        return q["id"]
+
     @db_error_default(cast(set[int], set()))
     def search_show_ids_by_names(self, *names: str, exact: bool = False) -> set[int]:
         shows: set[int] = set()
@@ -945,10 +1006,11 @@ def to_show_type(db_val: int) -> ShowType:
         return ShowType.UNKNOWN
 
 
-def from_show_type(show_type: ShowType) -> int | None:
-    if not show_type:
-        return None
-    return show_type.value
+def from_show_type(show_type: ShowType) -> int:
+    try:
+        return show_type.value
+    except Exception:
+        return ShowType.UNKNOWN.value
 
 
 ## Collations
