@@ -294,7 +294,6 @@ class DatabaseDatabase(sqlite3.Connection):
         self,
         active: bool = True,
     ) -> list[Stream]:
-        # Not the best combination of options, but it's only the usage needed
         if active:
             logger.debug("Getting all active streams missing show name")
             q = self.execute(
@@ -313,7 +312,6 @@ class DatabaseDatabase(sqlite3.Connection):
                 FROM Streams
                 WHERE (name IS NULL OR name = '') AND active = 0"""
             )
-        streams = [Stream(**stream) for stream in q.fetchall()]
         streams = list(
             filter(
                 None, [self._make_stream_from_query(stream) for stream in q.fetchall()]
