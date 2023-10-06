@@ -214,7 +214,7 @@ class SubmissionBuilder:
             for lite_stream in lite_streams
         )
         if stream_texts or lite_stream_texts:
-            return "\n".join(stream_texts) + "\n".join(lite_stream_texts)
+            return "\n".join(stream_texts) + "\n" + "\n".join(lite_stream_texts)
         return "*None*"
 
     def _gen_text_stream(self, stream: Stream) -> str | None:
