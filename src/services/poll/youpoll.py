@@ -1,7 +1,6 @@
 import logging
 import re
 from typing import Any
-from bs4 import Tag
 
 import requests
 
@@ -97,31 +96,30 @@ class PollHandler(AbstractPollHandler):
             )
             return None
         try:
-            # 5 points scale
-            divs = response.find_all("div", class_="basic-option-wrapper")
-            num_votes_tag = response.find("span", class_="admin-total-votes")
-            if not isinstance(num_votes_tag, Tag):
-                raise AttributeError
-            num_votes = int(num_votes_tag.text.replace(",", ""))
+            labels: list[str] = [
+                x.text.strip() for x in response.find_all("div", "rslt-plurality-txt")
+            ]
+            if diff := (set(labels) - set(self.OPTIONS)):
+                logger.error("Aborted - found unexpected labels: %s", ",".join(diff))
+                return None
+            votes = [
+                int(x.text.strip().replace(",", "").replace(".", ""))
+                for x in response.find_all("div", "rslt-plurality-votes")
+            ]
+            num_votes = int(response.find("span", "rslt-total-votes").text.strip())
             if num_votes == 0:
                 logger.warning("No vote recorded, no score returned")
                 return None
-            values: dict[str, float] = {}
-            for div in divs:
-                label: str = div.find("span", class_="basic-option-title").text
-                if label not in self.OPTIONS:
-                    logger.error("Found unexpected label %s, aborted", label)
-                    return None
-                value_text: str = div.find("span", class_="basic-option-percent").text
-                score = float(value_text.strip("%")) / 100
-                values[label] = score
-            results = [values[k] for k in self.OPTIONS]
-            logger.info("Results: %s", results)
-            total = round(sum(r * (5 - i) for i, r in enumerate(results)), 2)
-            return total
-        except Exception:
-            logger.error(
-                "Couldn't get scores for poll %s (parsing error)",
-                self.get_results_link(poll),
+            votes_dict = dict(zip(labels, votes))
+            score = round(
+                sum(votes_dict[a] * i for i, a in enumerate(self.OPTIONS[::-1], 1))
+                / num_votes,
+                2,
             )
-            return None
+            return score
+        except Exception as e:
+            logger.error(
+                "Couldn't get scores for poll %s - parsing error: %s",
+                self.get_results_link(poll),
+                e,
+            )

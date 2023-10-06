@@ -4,7 +4,7 @@ from typing import Any
 
 from config import Config
 from data.database import DatabaseDatabase
-from data.models import Episode, Poll, Show, Stream
+from data.models import Episode, Poll, PollSite, Show, Stream
 from reddit import RedditHolo, get_shortlink_from_id
 from services import AbstractPollHandler, Handlers
 
@@ -88,6 +88,25 @@ class SubmissionBuilder:
             show=show,
             stream=stream,
         )
+        poll = self.db.get_poll(show, episode)
+        if not poll:
+            poll_id = self.services.default_poll.create_poll(
+                title=self.config.post_poll_title.format(
+                    show=show.name, episode=episode.number
+                ),
+                submit=not self.config.debug,
+            )
+            if not poll_id:
+                logger.warning("Could not create poll")
+                return
+            poll_site = self.db.get_poll_site(key=self.services.default_poll.key)
+            if not poll_site:
+                logger.error("Poll site not found")
+                return
+            self.db.add_poll(show, episode, poll_site, poll_id)
+            poll = self.db.get_poll(show, episode)
+            assert isinstance(poll, Poll)
+        self._data.poll = poll
 
     def create_reddit_post(
         self, batch: bool = False, reddit_agent: RedditHolo | None = None
@@ -262,8 +281,26 @@ class SubmissionBuilder:
     def _episode_table_entry(
         self, episode: Episode, poll_handler: AbstractPollHandler | None = None
     ) -> str:
-        poll_handler = poll_handler or self.services.default_poll
         poll = self.db.get_poll(self.show, episode)
+        if poll:
+            poll_site = self.db.get_poll_site(poll_site_id=poll.service_id)
+            assert isinstance(poll_site, PollSite)
+            poll_handler = self.services.polls[poll_site.key]
+        else:
+            poll_handler = self.services.default_poll
+            poll_id = self.services.default_poll.create_poll(
+                title=self.config.post_poll_title.format(
+                    show=self.show.name, episode=episode.number
+                ),
+                submit=not self.config.debug,
+            )
+            assert isinstance(poll_id, str)
+            poll_site = self.db.get_poll_site(key=poll_handler.key)
+            assert isinstance(poll_site, PollSite)
+            self.db.add_poll(self.show, episode, poll_site, poll_id)
+            poll = self.db.get_poll(self.show, episode)
+            assert isinstance(poll, Poll)
+
         poll_score, poll_link = _poll_data_str(poll, poll_handler)
         return safe_format(
             self.config.post_formats["discussion"],

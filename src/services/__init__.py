@@ -29,7 +29,7 @@ from data.models import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_POLL_HANDLER = "youpoll"
+DEFAULT_POLL_HANDLER = "polltab"
 
 
 class ServiceTypes(StrEnum):

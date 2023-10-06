@@ -825,7 +825,7 @@ class DatabaseDatabase(sqlite3.Connection):
 
     @db_error_default(None)
     def get_poll_site(
-        self, poll_site_id: str | None = None, key: str | None = None
+        self, poll_site_id: int | None = None, key: str | None = None
     ) -> PollSite | None:
         if poll_site_id:
             q = self.execute(
