@@ -1,7 +1,8 @@
 import logging
 
 import praw
-from praw.models import Submission, Subreddit
+from praw.models import Comment, Submission, Subreddit
+from praw.models.reddit.comment import CommentModeration
 from praw.models.reddit.subreddit import SubredditFlair, SubredditLinkFlairTemplates
 
 from config import Config
@@ -84,6 +85,16 @@ class RedditHolo:
         except Exception:
             logger.exception("Failed to retrieve text post")
             return None
+
+    def comment_post(self, submission: Submission, body: str) -> Comment:
+        reply = submission.reply(body)
+        assert isinstance(reply, Comment)
+        return reply
+
+    def sticky_comment(self, comment: Comment) -> None:
+        comment_moderation = comment.mod
+        assert isinstance(comment_moderation, CommentModeration)
+        comment_moderation.distinguish(sticky=True)
 
 
 def get_shortlink_from_id(submission_id: str) -> str:

@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from praw.models import Submission
+
 from config import Config
 from data.database import DatabaseDatabase
 from data.models import Episode, Poll, PollSite, Show, Stream
@@ -119,7 +121,25 @@ class SubmissionBuilder:
             logger.error("Failed to submit post")
             return None
         logger.debug("Post successful")
+        if self.show.has_source:
+            self.create_source_material_corner(new_post, reddit_agent)
         return get_shortlink_from_id(new_post.id)
+
+    def create_source_material_corner(
+        self, submission: Submission, reddit_agent: RedditHolo | None = None
+    ) -> None:
+        assert reddit_agent
+        if not self.config.source_material_corner:
+            logger.error(
+                "Cannot create a source material corner without a comment body"
+            )
+            return
+        source_material_corner = reddit_agent.comment_post(
+            submission,
+            self.config.source_material_corner.format(subreddit=self.config.subreddit),
+        )
+        reddit_agent.sticky_comment(source_material_corner)
+        logger.debug("Source material corner created")
 
     def edit_reddit_post(
         self, url: str, reddit_agent: RedditHolo | None = None

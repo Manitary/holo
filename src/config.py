@@ -1,6 +1,6 @@
 import configparser
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from typing import Self
 
 from data.models import ShowType, str_to_showtype
@@ -49,13 +49,14 @@ class Config:
     batch_thread_post_body: str = ""
     post_formats: dict[str, str] = field(default_factory=dict)
     max_episodes: int = 5
+    source_material_corner: str = ""
 
     @classmethod
     def from_file(cls, file_path: str) -> Self:
         if "." not in file_path:
             file_path += ".ini"
 
-        parsed = WhitespaceFriendlyConfigParser()
+        parsed = WhitespaceFriendlyConfigParser(comment_prefixes=(";",))
         success = parsed.read(file_path, encoding="utf-8")
         if not success:
             logger.exception("Failed to load config file: %s", file_path)
@@ -118,6 +119,10 @@ class Config:
             for key in sec:
                 if key.startswith("format_") and len(key) > 7:
                     config.post_formats[key[7:]] = sec[key]
+
+        if "comment" in parsed:
+            sec = parsed["comment"]
+            config.source_material_corner = sec.get("source_material_corner", "")
 
         # Services
         for key in parsed:
