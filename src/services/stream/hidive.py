@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.hidive.com/tv/{id}"
-    _show_re = re.compile(r"hidive.com/tv/([\w-]+)", re.I)
+    _show_re = re.compile(r"hidive.com/tv/([\w-]+(?:/season-\d+)?)", re.I)
     _date_re = re.compile(r"Premiere: (\d+)/(\d+)/(\d+)")
 
     def __init__(self) -> None:
