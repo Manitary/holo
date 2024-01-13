@@ -1,12 +1,12 @@
-from logging import debug, info, warning, error, exception
-import re
-from datetime import datetime, timedelta
-
-from .. import AbstractServiceHandler
-from data.models import Episode, UnprocessedStream
+import logging
 
 from services.stream import youtube
 
+logger = logging.getLogger(__name__)
+
+
 class ServiceHandler(youtube.ServiceHandler):
-	def __init__(self):
-		super(youtube.ServiceHandler, self).__init__("anione", "Ani-One", False)
+    def __init__(self) -> None:
+        super(youtube.ServiceHandler, self).__init__(
+            key="anione", name="Ani-One", is_generic=False
+        )

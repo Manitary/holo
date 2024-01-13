@@ -1,113 +1,153 @@
-from logging import debug, info, warning, error, exception
+import logging
 import re
 from datetime import datetime, timedelta
+from typing import Any
+
+from bs4 import BeautifulSoup, Tag
+
+from data.models import Episode, Stream, UnprocessedStream
 
 from .. import AbstractServiceHandler
-from data.models import Episode, UnprocessedStream
+
+logger = logging.getLogger(__name__)
+
 
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.hidive.com/tv/{id}"
-    _show_re = re.compile("hidive.com/tv/([\w-]+)", re.I)
+    _show_re = re.compile(r"hidive.com/tv/([\w-]+(?:/season-\d+)?)", re.I)
+    _date_re = re.compile(r"Premiere: (\d+)/(\d+)/(\d+)")
 
-    def __init__(self):
-        super().__init__("hidive", "HIDIVE", False)
+    def __init__(self) -> None:
+        super().__init__(key="hidive", name="HIDIVE", is_generic=False)
 
     # Episode finding
 
-    def get_all_episodes(self, stream, **kwargs):
-        info(f"Getting live episodes for HiDive/{stream.show_key}")
+    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
+        logger.info("Getting live episodes for HiDive/%s", stream.show_key)
+
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
-        # Check episode validity and digest
-        episodes = []
-        for episode_data in episode_datas:
-            if _is_valid_episode(episode_data, stream.show_key):
-                try:
-                    episode = _digest_episode(episode_data)
-                    if episode is not None:
-                        episodes.append(episode)
-                except:
-                    exception(f"Problem digesting episode for HiDive/{stream.show_key}")
+        # HIDIVE does not include episode date in the show's page
+        # Pre-process the data to obtain all the other information
+        # Sort the episodes by descending number
+        # Stop at the first invalid episode
+        # (Assumption: all new episodes have increasing numbers)
+        # This is to reduce the number of requests to make
+        episodes_candidates = sorted(
+            list(filter(None, map(_preprocess_episode, episode_datas))),
+            key=lambda e: e.number,
+            reverse=True,
+        )
 
-        if len(episode_datas) > 0:
-            debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
-        else:
-            debug("  No episode found")
+        episodes: list[Episode] = []
+        for episode in episodes_candidates:
+            try:
+                if episode := self._is_valid_episode(
+                    episode=episode, show_key=stream.show_key, **kwargs
+                ):
+                    episodes.append(episode)
+                else:
+                    break
+            except Exception:
+                logger.exception(
+                    "Problem digesting episode for HiDive/%s", stream.show_key
+                )
+        logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
-    def _get_feed_episodes(self, show_key, **kwargs):
-        info(f"Getting episodes for HiDive/{show_key}")
+    def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[Tag]:
+        logger.info("Getting episodes for HiDive/%s", show_key)
 
         url = self._get_feed_url(show_key)
 
-        # Send request
-        response = self.request(url, html=True, **kwargs)
-        if response is None:
-            error(f"Cannot get show page for HiDive/{show_key}")
-            return list()
+        response: BeautifulSoup | None = self.request_html(url=url, **kwargs)
+        if not response:
+            logger.error("Cannot get show page for HiDive/%s", show_key)
+            return []
 
-        # Parse html page
         sections = response.find_all("div", {"data-section": "episodes"})
-        #return [section.a['data-playurl'] for section in sections if section.a]
         return sections
 
-
     @classmethod
-    def _get_feed_url(cls, show_key):
-        if show_key is not None:
+    def _get_feed_url(cls, show_key: str) -> str:
+        if show_key:
             return cls._show_url.format(id=show_key)
-        else:
-            return None
+        return ""
 
     # Remove info getting
 
-    def get_stream_info(self, stream, **kwargs):
-        info(f"Getting stream info for HiDive/{stream.show_key}")
+    def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
+        logger.info("Getting stream info for HiDive/%s", stream.show_key)
 
         url = self._get_feed_url(stream.show_key)
-        response = self.request(url, html=True, **kwargs)
-        if response is None:
-            error("Cannot get feed")
+        if not url:
+            logger.error("Cannot get url from show key")
+            return None
+        response: BeautifulSoup | None = self.request_html(url, **kwargs)
+        if not response:
+            logger.error("Cannot get feed")
             return None
 
         title_section = response.find("div", {"class": "episodes"})
-        if title_section is None:
-           error("Could not extract title")
-           return None
-
+        if not title_section:
+            logger.error("Could not extract title")
+            return None
+        if not (isinstance(title_section, Tag) and title_section.h1):
+            logger.error("Could not extract title")
+            return None
         stream.name = title_section.h1.text
         return stream
 
-    def get_seasonal_streams(self, **kwargs):
+    def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
         # What is this for again ?
-        return list()
+        return []
 
-    def get_stream_link(self, stream):
+    def get_stream_link(self, stream: Stream) -> str:
         return self._show_url.format(id=stream.show_key)
 
-    def extract_show_key(self, url):
-        match = self._show_re.search(url)
-        if match:
+    def extract_show_key(self, url: str) -> str | None:
+        if match := self._show_re.search(url):
             return match.group(1)
         return None
 
-_episode_re = re.compile("(?:https://www.hidive.com)?/stream/[\w-]+/s\d{2}e(\d{3})", re.I)
-_episode_re_alter = re.compile("(?:https://www.hidive.com)?/stream/[\w-]+/\d{4}\d{2}\d{2}(\d{2})", re.I)
-_episode_name_correct = re.compile("(?:E\d+|Shorts) ?\| ?(.*)")
-_episode_name_invalid = re.compile(".*coming soon.*", re.I)
+    def _is_valid_episode(
+        self, episode: Episode, show_key: str, **kwargs: Any
+    ) -> Episode | None:
+        # Possibly other cases to watch ?
+        response = self.request_html(url=episode.link, **kwargs)
+        if not response:
+            logger.error("Invalid episode link for show %s/%s", self.key, show_key)
+            return None
+        if not (match := self._date_re.search(str(response.h2 or ""))):
+            logger.warning("Date not found")
+            return episode
+        month, day, year = map(int, match.groups())
+        # HIDIVE only has m/d/y, not hh:mm
+        episode_day = datetime(day=day, month=month, year=year)
+        date_diff = datetime.utcnow() - episode_day
+        if date_diff >= timedelta(days=2):
+            logger.debug("  Episode too old")
+            return None
+        episode.date = episode_day
+        return episode
 
-def _is_valid_episode(episode_data, show_key):
-    # Possibly other cases to watch ?
-    if episode_data.a is None:
-        return False
-    #return re.match(_episode_re.format(id=show_key), episode_data) is not None
 
-    return True
+_episode_re = re.compile(
+    r"(?:https://www.hidive.com)?/stream/[\w-]+/s\d{2}e(\d{3})", re.I
+)
+_episode_re_alter = re.compile(
+    r"(?:https://www.hidive.com)?/stream/[\w-]+/\d{4}\d{2}\d{2}(\d{2})", re.I
+)
+_episode_name_correct = re.compile(r"(?:E\d+|Shorts) ?\| ?(.*)")
+_episode_name_invalid = re.compile(r".*coming soon.*", re.I)
+_episode_link = "https://www.hidive.com{href}"
 
-def _digest_episode(feed_episode):
-    debug("Digesting episode")
 
-    episode_link = feed_episode.a['href']
+def _preprocess_episode(feed_episode: Tag) -> Episode | None:
+    logger.debug("Pre-processing episode")
+    if not feed_episode.a:
+        return None
+    episode_link = _episode_link.format(href=feed_episode.a["href"])
 
     # Get data
     num_match = _episode_re.match(episode_link)
@@ -115,24 +155,26 @@ def _digest_episode(feed_episode):
     if num_match:
         num = int(num_match.group(1))
     elif num_match_alter:
-        warning("Using alternate episode key format")
+        logger.warning("Using alternate episode key format")
         num = int(num_match_alter.group(1))
     else:
-        warning(f"Unknown episode number format in {episode_link}")
+        logger.warning("Unknown episode number format in %s", episode_link)
         return None
     if num <= 0:
         return None
 
-    name = feed_episode.h2.text
-    name_match = _episode_name_correct.match(name)
-    if name_match:
-        debug(f"  Corrected title from {name}")
+    if not feed_episode.h2:
+        name = ""
+    else:
+        name = feed_episode.h2.text
+
+    if name_match := _episode_name_correct.match(name):
+        logger.debug("  Corrected title from %s", name)
         name = name_match.group(1)
     if _episode_name_invalid.match(name):
-        warning(f"  Episode title not found")
-        name = None
+        logger.warning("  Episode title not found")
+        name = ""
 
-    link = episode_link
-    date = datetime.utcnow() # Not included in stream !
+    date = datetime.utcnow()  # Not included in stream !
 
-    return Episode(num, name, link, date)
+    return Episode(number=num, name=name, link=episode_link, date=date)

@@ -1,112 +1,154 @@
-from logging import debug, info, warning, error, exception
+import logging
 import re
 from datetime import datetime, timedelta
+from typing import Any
+
 import dateutil.parser
+from bs4 import BeautifulSoup, Tag
+
+from data.models import Episode, Stream, UnprocessedStream
 
 from .. import AbstractServiceHandler
-from data.models import Episode, UnprocessedStream
+
+logger = logging.getLogger(__name__)
+
 
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.adultswim.com/videos/{id}/"
-    _show_re = re.compile("adultswim.com/videos/([\w-]+)", re.I)
+    _show_re = re.compile(r"adultswim.com/videos/([\w-]+)", re.I)
 
-    def __init__(self):
-        super().__init__("adultswim", "Adult Swim", False)
+    def __init__(self) -> None:
+        super().__init__(key="adultswim", name="Adult Swim", is_generic=False)
 
     # Episode finding
 
-    def get_all_episodes(self, stream, **kwargs):
-        info(f"Getting live episodes for {self.name}/{stream.show_key}")
+    def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
+        logger.info("Getting live episodes for %s/%s", self.name, stream.show_key)
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
         # Check episode validity and digest
-        episodes = []
+        episodes: list[Episode] = []
         for episode_data in episode_datas:
-            if _is_valid_episode(episode_data, stream.show_key):
+            if _is_valid_episode(episode_data):
                 try:
-                    episodes.append(_digest_episode(episode_data))
-                except:
-                    exception(f"Problem digesting episode for {self.name}/{stream.show_key}")
-
-        if len(episode_datas) > 0:
-            debug(f"  {len(episode_datas)} episodes found, {len(episodes)} valid")
-        else:
-            debug("  No episode found")
+                    episode = _digest_episode(episode_data)
+                    if not episode:
+                        continue
+                    episodes.append(episode)
+                except Exception:
+                    logger.exception(
+                        "Problem digesting episode for %s/%s",
+                        self.name,
+                        stream.show_key,
+                    )
+        logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
-    def _get_feed_episodes(self, show_key, **kwargs):
-        info(f"Getting episodes for {self.name}/{show_key}")
-
+    def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[Tag]:
+        logger.info("Getting episodes for %s/%s", self.name, show_key)
         url = self._get_feed_url(show_key)
+        if not url:
+            logger.error("Cannot get url from show key")
+            return []
 
         # Send request
-        response = self.request(url, html=True, **kwargs)
-        if response is None:
-            error(f"Cannot get show page for {self.name}/{show_key}")
-            return list()
+        response: BeautifulSoup | None = self.request_html(url=url, **kwargs)
+        if not response:
+            logger.error("Cannot get show page for %s/%s", self.name, show_key)
+            return []
 
         # Parse html page
         sections = response.find_all("div", itemprop="episode")
         return sections
 
-
     @classmethod
-    def _get_feed_url(cls, show_key):
-        if show_key is not None:
+    def _get_feed_url(cls, show_key: str) -> str | None:
+        if show_key:
             return cls._show_url.format(id=show_key)
-        else:
-            return None
+        return None
 
     # Remove info getting
 
-    def get_stream_info(self, stream, **kwargs):
-        info(f"Getting stream info for {self.name}/{stream.show_key}")
+    def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
+        logger.info("Getting stream info for %s/%s", self.name, stream.show_key)
 
         url = self._get_feed_url(stream.show_key)
-        response = self.request(url, html=True, **kwargs)
-        if response is None:
-            error("Cannot get feed")
+        if not url:
+            logger.warning("Cannot get url from show key")
             return None
-
-        stream.name = response.find("h1", itemprop="name").text
+        response: BeautifulSoup | None = self.request_html(url, **kwargs)
+        if not response:
+            logger.error("Cannot get feed")
+            return None
+        name_tag = response.find("h1", itemprop="name")
+        if isinstance(name_tag, Tag):
+            stream.name = name_tag.text
         return stream
 
-    def get_seasonal_streams(self, **kwargs):
+    def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
         # What is this for again ?
-        return list()
+        return []
 
-    def get_stream_link(self, stream):
+    def get_stream_link(self, stream: Stream) -> str:
         return self._show_url.format(id=stream.show_key)
 
-    def extract_show_key(self, url):
-        match = self._show_re.search(url)
-        if match:
+    def extract_show_key(self, url: str) -> str | None:
+        if match := self._show_re.search(url):
             return match.group(1)
         return None
 
-def _is_valid_episode(episode_data, show_key):
+
+def _is_valid_episode(episode_data: Tag) -> bool:
     # Don't check old episodes (possible wrong season !)
-    date_string = episode_data.find("meta", itemprop="datePublished")["content"]
+    date_tag = episode_data.find("meta", itemprop="datePublished")
+
+    if not isinstance(date_tag, Tag):
+        logger.debug("  Failed date parsing")
+        return False
+    date_string = date_tag["content"]
+    if not isinstance(date_string, str):
+        logger.debug("  Failed date parsing")
+        return False
     date = datetime.fromordinal(dateutil.parser.parse(date_string).toordinal())
 
     if date > datetime.utcnow():
-	    return False
+        return False
 
     date_diff = datetime.utcnow() - date
     if date_diff >= timedelta(days=2):
-	    debug("  Episode too old")
-	    return False
+        logger.debug("  Episode too old")
+        return False
 
     return True
 
-def _digest_episode(feed_episode):
-    debug("Digesting episode")
 
-    name = feed_episode.find("h4", itemprop="name", class_="episode__title").text
-    link = feed_episode.find("a", itemprop="url", class_="episode__link").href
-    num = int(feed_episode.find("meta", itemprop="episodeNumber")["content"])
+def _digest_episode(feed_episode: Tag) -> Episode | None:
+    logger.debug("Digesting episode")
+    name_tag = feed_episode.find("h4", itemprop="name", class_="episode__title")
+    link_tag = feed_episode.find("a", itemprop="url", class_="episode__link")
+    number_tag = feed_episode.find("meta", itemprop="episodeNumber")
+    date_tag = feed_episode.find("meta", itemprop="dateCreated")
+    if not (
+        isinstance(name_tag, Tag)
+        and isinstance(link_tag, Tag)
+        and isinstance(number_tag, Tag)
+        and isinstance(date_tag, Tag)
+    ):
+        logger.debug("  Failed to digest episode")
+        return None
 
-    date_string = feed_episode.find("meta", itemprop="dateCreated")["content"]
+    number_str = number_tag["content"]
+    date_string = date_tag["content"]
+    link = link_tag["href"]
+    if not (
+        isinstance(number_str, str)
+        and isinstance(date_string, str)
+        and isinstance(link, str)
+    ):
+        return None
+
+    name = name_tag.text
+    num = int(number_str)
     date = datetime.fromordinal(dateutil.parser.parse(date_string).toordinal())
 
-    return Episode(num, name, link, date)
+    return Episode(number=num, name=name, link=link, date=date)

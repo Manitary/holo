@@ -1,57 +1,65 @@
 # API docs: https://anilist-api.readthedocs.org/en/latest/
 
-from logging import debug, info, warning, error
+import logging
 import re
+from typing import Any
+
+from bs4 import BeautifulSoup
+
+from data.models import Link, Show, UnprocessedShow
 
 from .. import AbstractInfoHandler
-from data.models import UnprocessedShow, ShowType
+
+logger = logging.getLogger(__name__)
+
 
 class InfoHandler(AbstractInfoHandler):
-	_show_link_base = "https://anilist.co/anime/{id}"
-	_show_link_matcher = "https?://anilist\\.co/anime/([0-9]+)"
-	_season_url = "https://anilist.co/api/browse/anime?year={year}&season={season}&type=Tv"
-	
-	def __init__(self):
-		super().__init__("anilist", "AniList")
-		self.rate_limit_wait = 2
-		
-	def get_link(self, link):
-		if link is None:
-			return None
-		return self._show_link_base.format(id=link.site_key)
-	
-	def extract_show_id(self, url):
-		if url is not None:
-			match = re.match(self._show_link_matcher, url, re.I)
-			if match:
-				return match.group(1)
-		return None
-	
-	def get_episode_count(self, link, **kwargs):
-		return None
-	
-	def get_show_score(self, show, link, **kwargs):
-		return None
-	
-	def get_seasonal_shows(self, year=None, season=None, **kwargs):
-		#debug("Getting season shows: year={}, season={}".format(year, season))
-		
-		# Request season page from AniDB
-		#url = self._season_url.format(year=year, season=season)
-		#response = self._site_request(url, **kwargs)
-		#if response is None:
-		#	error("Cannot get show list")
-		#	return list()
-		
-		# Parse page
-		#TODO
-		return list()
-	
-	def find_show(self, show_name, **kwargs):
-		return list()
-	
-	def find_show_info(self, show_id, **kwargs):
-		return None
-	
-	def _site_request(self, url, **kwargs):
-		return self.request(url, html=True, **kwargs)
+    _show_link_base = "https://anilist.co/anime/{id}"
+    _show_link_matcher = "https?://anilist\\.co/anime/([0-9]+)"
+    _season_url = (
+        "https://anilist.co/api/browse/anime?year={year}&season={season}&type=Tv"
+    )
+
+    def __init__(self) -> None:
+        super().__init__(key="anilist", name="AniList")
+        self.rate_limit_wait = 2
+
+    def get_link(self, link: Link | None) -> str | None:
+        if not link:
+            return None
+        return self._show_link_base.format(id=link.site_key)
+
+    def extract_show_id(self, url: str) -> str | None:
+        if match := re.match(self._show_link_matcher, url, re.I):
+            return match.group(1)
+        return None
+
+    def get_episode_count(self, link: Link, **kwargs: Any) -> int | None:
+        return None
+
+    def get_show_score(self, show: Show, link: Link, **kwargs: Any) -> float | None:
+        return None
+
+    def get_seasonal_shows(
+        self, year: int | None = None, season: str | None = None, **kwargs: Any
+    ) -> list[UnprocessedShow]:
+        # logger.debug("Getting season shows: year=%s, season=%s", year, season)
+
+        # Request season page from AniDB
+        # url = self._season_url.format(year=year, season=season)
+        # response = self._site_request(url, **kwargs)
+        # if response is None:
+        # 	logger.error("Cannot get show list")
+        # 	return list()
+
+        # Parse page
+        return []
+
+    def find_show(self, show_name: str, **kwargs: Any) -> list[UnprocessedShow]:
+        return []
+
+    def find_show_info(self, show_id: str, **kwargs: Any) -> UnprocessedShow | None:
+        return None
+
+    def _site_request(self, url: str, **kwargs: Any) -> BeautifulSoup | None:
+        return self.request_html(url, **kwargs)
