@@ -7,7 +7,3 @@ __all__ = [
     for f in module_dir.iterdir()
     if f.suffix == ".py" and not f.stem.startswith("__")
 ]
-
-del Path
-
-from . import *

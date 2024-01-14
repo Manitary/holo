@@ -3,7 +3,6 @@ import re
 from typing import Any
 
 import requests
-from bs4 import BeautifulSoup
 from data.models import Poll
 
 from .. import AbstractPollHandler
