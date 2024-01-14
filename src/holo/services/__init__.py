@@ -15,7 +15,6 @@ from xml.etree import ElementTree as xml_parser
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-
 from config import Config
 from data.models import (
     Episode,

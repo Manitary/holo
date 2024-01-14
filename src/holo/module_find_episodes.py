@@ -6,7 +6,7 @@ from data.database import DatabaseDatabase
 from data.models import Episode, Show, Stream
 from reddit import RedditHolo
 from services import AbstractServiceHandler, Handlers
-from submission import SubmissionBuilder, MAX_EPISODES
+from submission import MAX_EPISODES, SubmissionBuilder
 
 logger = logging.getLogger(__name__)
 

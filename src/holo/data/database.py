@@ -8,9 +8,8 @@ from functools import lru_cache, singledispatchmethod, wraps
 from pathlib import Path
 from typing import Any, Callable, ParamSpec, TypeVar, cast
 
-from unidecode import unidecode
-
 from services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
+from unidecode import unidecode
 
 from .models import (
     Episode,

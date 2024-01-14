@@ -3,7 +3,6 @@ from collections import OrderedDict
 from typing import Any, Generator
 
 import yaml
-
 from config import Config
 from data.database import DatabaseDatabase
 from data.models import ShowType, UnprocessedShow, UnprocessedStream

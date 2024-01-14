@@ -1,5 +1,5 @@
-from typing import Any, TypedDict
 from time import struct_time
+from typing import Any, TypedDict
 
 # TODO: mark required/not required attributes?
 

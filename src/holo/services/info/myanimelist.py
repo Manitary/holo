@@ -7,7 +7,6 @@ from typing import Any
 from xml.etree.ElementTree import Element
 
 from bs4 import BeautifulSoup
-
 from data.models import Link, Show, ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler

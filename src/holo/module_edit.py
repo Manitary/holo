@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import yaml
-
 from data.database import DatabaseDatabase
 from data.models import ShowType, UnprocessedShow, UnprocessedStream, str_to_showtype
 from services import Handlers

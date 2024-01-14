@@ -13,7 +13,6 @@ import re
 from typing import Any
 
 from bs4 import BeautifulSoup
-
 from data.models import Link, Show, ShowType, UnprocessedShow
 
 from .. import AbstractInfoHandler
