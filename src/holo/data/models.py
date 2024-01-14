@@ -57,6 +57,10 @@ class Show(DbEqMixin):
     def aliases(self, names: list[str]) -> None:
         self._aliases = names
 
+    @property
+    def type(self) -> str:
+        return ShowType(self.show_type).name
+
     def __str__(self) -> str:
         return f"Show: {self.name} (id={self.id}, type={self.show_type}, len={self.length})"
 

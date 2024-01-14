@@ -25,6 +25,10 @@ DESCRIPTION = "episode discussion bot"
 VERSION = "0.1.4"
 
 
+def test() -> None:
+    print("test")
+
+
 @dataclass
 class ParserArguments:
     config_file: str
@@ -39,7 +43,7 @@ class ParserArguments:
     max_episodes: int
 
 
-def holo(config: Config, args: Type[ParserArguments]) -> None:
+def _holo(config: Config, args: Type[ParserArguments]) -> None:
     # Set things up
     db = database.living_in(config.database)
     if not db:
@@ -249,7 +253,7 @@ def main() -> None:
         logger.info("DEBUG MODE ENABLED")
 
     start_time = time()
-    holo(config=config, args=args)
+    _holo(config=config, args=args)
     end_time = time()
 
     time_diff = end_time - start_time

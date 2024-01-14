@@ -1,4 +1,5 @@
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -405,3 +406,38 @@ def safe_format(string: str, **kwargs: Any) -> str:
     :return: A formatted string
     """
     return string.format_map(_SafeDict(**kwargs))
+
+
+def submit_next_episode(
+    current_episode_number: int,
+    show: Show,
+    db: DatabaseDatabase,
+    config: Config | None = None,
+) -> str | None:
+    if not config:
+        config_file = os.environ.get("HOLO_CONFIG", "")
+        if not config_file:
+            raise RuntimeError("Configuration file missing")
+        config = Config.from_file(config_file)
+    handlers = Handlers(config)
+    builder = SubmissionBuilder(db, config, handlers)
+    fake_stream = Stream(0, 0, show, show.id, "", "")
+    if show.length and current_episode_number >= show.length:
+        raise ValueError("The show already ended")
+    new_episode = Episode(current_episode_number + 1)
+    builder.set_data(show, new_episode, fake_stream)
+    holo = RedditHolo(config)
+    url = builder.create_reddit_post(reddit_agent=holo)
+    assert url
+    url = url.replace("http:", "https:")
+    db.add_episode(show, new_episode.number, url)
+    _disable_finished_shows(db)
+    editing_episodes = db.get_episodes(show)
+    if editing_episodes:
+        editing_episodes.sort(key=lambda e: e.number)
+        for editing_episode in editing_episodes[-MAX_EPISODES // 2 :]:
+            builder.edit_reddit_post(
+                url=editing_episode.link or "",
+                reddit_agent=holo,
+            )
+    return url
