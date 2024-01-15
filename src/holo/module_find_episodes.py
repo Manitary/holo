@@ -1,12 +1,12 @@
 import logging
 from typing import Generator, Iterable
 
-from config import Config
-from data.database import DatabaseDatabase
-from data.models import Episode, Show, Stream
-from reddit import RedditHolo
-from services import AbstractServiceHandler, Handlers
-from submission import MAX_EPISODES, SubmissionBuilder
+from .config import Config
+from .data.database import DatabaseDatabase
+from .data.models import Episode, Show, Stream
+from .reddit import RedditHolo
+from .services import AbstractServiceHandler, Handlers
+from .submission import MAX_EPISODES, SubmissionBuilder
 
 logger = logging.getLogger(__name__)
 

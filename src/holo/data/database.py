@@ -8,9 +8,9 @@ from functools import lru_cache, singledispatchmethod, wraps
 from pathlib import Path
 from typing import Any, Callable, ParamSpec, TypeVar, cast
 
-from services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
 from unidecode import unidecode
 
+from ..services import AbstractInfoHandler, AbstractPollHandler, AbstractServiceHandler
 from .models import (
     Episode,
     EpisodeScore,

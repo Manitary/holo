@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime, timedelta
 
-from config import Config
-from data.database import DatabaseDatabase
-from services import Handlers
+from .config import Config
+from .data.database import DatabaseDatabase
+from .services import Handlers
 
 logger = logging.getLogger(__name__)
 

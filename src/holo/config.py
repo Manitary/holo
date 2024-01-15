@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Self
 
-from data.models import ShowType, str_to_showtype
+from .data.models import ShowType, str_to_showtype
 
 logger = logging.getLogger(__name__)
 

@@ -3,9 +3,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Any
 
-from data.feeds import CrunchyrollEntry, CrunchyrollPayload
-from data.models import Episode, Stream, UnprocessedStream
-
+from ...data.feeds import CrunchyrollEntry, CrunchyrollPayload
+from ...data.models import Episode, Stream, UnprocessedStream
 from .. import AbstractServiceHandler
 
 logger = logging.getLogger(__name__)

@@ -3,10 +3,11 @@ from collections import OrderedDict
 from typing import Any, Generator
 
 import yaml
-from config import Config
-from data.database import DatabaseDatabase
-from data.models import ShowType, UnprocessedShow, UnprocessedStream
-from services import Handlers
+
+from .config import Config
+from .data.database import DatabaseDatabase
+from .data.models import ShowType, UnprocessedShow, UnprocessedStream
+from .services import Handlers
 
 logger = logging.getLogger(__name__)
 

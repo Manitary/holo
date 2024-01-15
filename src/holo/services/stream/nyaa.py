@@ -7,8 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any, Iterable
 from urllib.parse import quote_plus as url_quote
 
-from data.models import Episode, Stream, UnprocessedStream
-
+from ...data.models import Episode, Stream, UnprocessedStream
 from .. import AbstractServiceHandler
 
 logger = logging.getLogger(__name__)

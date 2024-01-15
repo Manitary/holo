@@ -2,8 +2,7 @@ import logging
 import re
 from typing import Any
 
-from data.models import Link, Show, UnprocessedShow
-
+from ...data.models import Link, Show, UnprocessedShow
 from .. import AbstractInfoHandler
 
 logger = logging.getLogger(__name__)

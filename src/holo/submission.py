@@ -3,13 +3,14 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-from config import Config
-from data.database import DatabaseDatabase
-from data.models import Episode, Poll, PollSite, Show, Stream
-from module_update_shows import _disable_finished_shows
 from praw.models import Submission
-from reddit import RedditHolo, get_shortlink_from_id
-from services import AbstractPollHandler, Handlers
+
+from .config import Config
+from .data.database import DatabaseDatabase
+from .data.models import Episode, Poll, PollSite, Show, Stream
+from .module_update_shows import _disable_finished_shows
+from .reddit import RedditHolo, get_shortlink_from_id
+from .services import AbstractPollHandler, Handlers
 
 logger = logging.getLogger(__name__)
 

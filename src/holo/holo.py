@@ -9,9 +9,9 @@ from pathlib import Path
 from time import time
 from typing import Type
 
-from config import Config, InvalidConfigException
-from data import database
-from services import Handlers
+from .config import Config, InvalidConfigException
+from .data import database
+from .services import Handlers
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,6 @@ if sys.version_info[0] != 3 or sys.version_info[1] < 5:
 NAME = "Holo"
 DESCRIPTION = "episode discussion bot"
 VERSION = "0.1.4"
-
-
-def test() -> None:
-    print("test")
 
 
 @dataclass
@@ -64,17 +60,17 @@ def _holo(config: Config, args: Type[ParserArguments]) -> None:
             db.register_poll_sites(handlers.polls)
         elif config.module == "edit":
             logger.info("Editing database")
-            import module_edit as m
+            from . import module_edit as m
 
             m.main(db=db, edit_file=args.extra[0], handlers=handlers)
         elif config.module == "episode":
             logger.info("Finding new episodes")
-            import module_find_episodes as m
+            from . import module_find_episodes as m
 
             m.main(config=config, db=db, handlers=handlers)
         elif config.module == "find":
             logger.info("Finding new shows")
-            import module_find_shows as m
+            from . import module_find_shows as m
 
             if args.output == "db":
                 m.main(config=config, handlers=handlers, output_yaml=False)
@@ -88,12 +84,12 @@ def _holo(config: Config, args: Type[ParserArguments]) -> None:
                 )
         elif config.module == "update":
             logger.info("Updating shows")
-            import module_update_shows as m
+            from . import module_update_shows as m
 
             m.main(config=config, db=db, handlers=handlers)
         elif config.module == "create":
             logger.info("Creating new thread")
-            import module_create_threads as m
+            from . import module_create_threads as m
 
             m.main(
                 config=config,
@@ -104,7 +100,7 @@ def _holo(config: Config, args: Type[ParserArguments]) -> None:
             )
         elif config.module == "batch":
             logger.info("Batch creating threads")
-            import module_batch_create as m
+            from . import module_batch_create as m
 
             m.main(
                 config=config,

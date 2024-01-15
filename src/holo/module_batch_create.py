@@ -1,11 +1,11 @@
 import logging
 
-from config import Config
-from data.database import DatabaseDatabase
-from data.models import Episode, Stream
-from reddit import RedditHolo
-from services import Handlers
-from submission import SubmissionBuilder
+from .config import Config
+from .data.database import DatabaseDatabase
+from .data.models import Episode, Stream
+from .reddit import RedditHolo
+from .services import Handlers
+from .submission import SubmissionBuilder
 
 logger = logging.getLogger(__name__)
 

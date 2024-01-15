@@ -3,8 +3,8 @@ import re
 from typing import Any
 
 import requests
-from data.models import Poll
 
+from ...data.models import Poll
 from .. import AbstractPollHandler
 
 logger = logging.getLogger(__name__)

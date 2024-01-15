@@ -1,10 +1,11 @@
 import logging
 
 import praw
-from config import Config
 from praw.models import Comment, Submission, Subreddit
 from praw.models.reddit.comment import CommentModeration
 from praw.models.reddit.subreddit import SubredditFlair, SubredditLinkFlairTemplates
+
+from .config import Config
 
 logger = logging.getLogger(__name__)
 

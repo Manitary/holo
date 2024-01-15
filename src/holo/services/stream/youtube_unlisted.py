@@ -1,6 +1,6 @@
 import logging
 
-from services.stream import youtube
+from . import youtube
 
 logger = logging.getLogger(__name__)
 
