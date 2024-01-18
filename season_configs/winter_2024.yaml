@@ -311,7 +311,7 @@ info:
     official: 'https://highcard-anime.jp/'
     subreddit: '/r/HighCard'
 streams:
-    crunchyroll: "https://www.crunchyroll.com/high-card"
+    crunchyroll: "https://www.crunchyroll.com/high-card|12"
     museasia: ""
     anione: ""
     funimation|Funimation: ""
