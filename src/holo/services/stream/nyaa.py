@@ -85,6 +85,8 @@ class ServiceHandler(AbstractServiceHandler):
         for stream in streams:
             show = stream.show
             names = [show.name] + show.aliases + [stream.show_key]
+            if show.name_en:
+                names.append(show.name_en)
 
             for name in names:
                 # logger.debug("  Trying: %s", name)
