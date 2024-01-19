@@ -32,6 +32,7 @@ def main(config: Config, db: DatabaseDatabase, handlers: Handlers) -> None:
             submitter=submitter,
             reddit_agent=reddit_holo,
             streams=streams,
+            db=db,
         ):
             has_new_episode.append((show, episode))
 
@@ -53,6 +54,7 @@ def main(config: Config, db: DatabaseDatabase, handlers: Handlers) -> None:
             submitter=submitter,
             reddit_agent=reddit_holo,
             streams=other_streams,
+            db=db,
         ):
             has_new_episode.append((show, episode))
 
@@ -68,6 +70,7 @@ def _process_service_streams(
     submitter: SubmissionBuilder,
     reddit_agent: RedditHolo,
     streams: Iterable[Stream],
+    db: DatabaseDatabase,
 ) -> Generator[tuple[Show, Episode], None, None]:
     recent_episodes = stream_handler.get_recent_episodes(
         streams, useragent=submitter.config.useragent
@@ -91,7 +94,11 @@ def _process_service_streams(
             logger.info("  No episode found")
             continue
 
-        if (ep_num := len({e.number for e in episodes})) > reddit_agent.max_episodes:
+        latest_ep = db.get_latest_episode(show)
+        latest_ep_num = latest_ep.number if latest_ep else 0
+        if (
+            ep_num := len({e.number for e in episodes})
+        ) > latest_ep_num + reddit_agent.max_episodes + stream.remote_offset:
             logger.warning(
                 "Too many episodes (%s) found for show %s on stream #%s",
                 ep_num,
