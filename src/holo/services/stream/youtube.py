@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Iterable
 
 from ...data.feeds import (
@@ -200,7 +200,7 @@ def _digest_episode(feed_episode: YoutubeVideoItem) -> Episode | None:
 
     date_string = snippet["publishedAt"].replace("Z", "")
     # date_string = snippet["publishedAt"].replace('Z', '+00:00') # Use this for offset-aware dates
-    date = datetime.fromisoformat(date_string) or datetime.utcnow()
+    date = datetime.fromisoformat(date_string) or datetime.now(UTC).replace(tzinfo=None)
 
     link = _video_url.format(video_id=feed_episode["id"])
     return Episode(number=episode_num, link=link, date=date)

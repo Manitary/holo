@@ -2,7 +2,7 @@ import copy
 import enum
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from time import struct_time
 from typing import Self
 
@@ -94,7 +94,7 @@ class Episode:
         if not self.date:
             logger.warning("Episode %s does not have a date assigned", self.number)
             return False
-        return datetime.utcnow() >= self.date
+        return datetime.now(UTC).replace(tzinfo=None) >= self.date
 
     @property
     def is_live_local(self) -> bool:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache, singledispatchmethod, wraps
 from pathlib import Path
 from typing import Any, Callable, ParamSpec, TypeVar, cast
@@ -843,7 +843,7 @@ class DatabaseDatabase(sqlite3.Connection):
         poll_id: str,
         commit: bool = True,
     ) -> None:
-        timestamp = int(datetime.now(timezone.utc).timestamp())
+        timestamp = int(datetime.now(UTC).timestamp())
         self.execute(
             """INSERT INTO Polls
             (show, episode, poll_service, poll_id, timestamp)

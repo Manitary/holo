@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import dateutil.parser
@@ -110,10 +110,10 @@ def _is_valid_episode(episode_data: Tag) -> bool:
         return False
     date = datetime.fromordinal(dateutil.parser.parse(date_string).toordinal())
 
-    if date > datetime.utcnow():
+    date_diff = datetime.now(UTC).replace(tzinfo=None) - date
+    if date_diff < timedelta(0):
         return False
 
-    date_diff = datetime.utcnow() - date
     if date_diff >= timedelta(days=2):
         logger.debug("  Episode too old")
         return False

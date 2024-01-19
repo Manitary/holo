@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from bs4 import BeautifulSoup, Tag
@@ -123,7 +123,7 @@ class ServiceHandler(AbstractServiceHandler):
         month, day, year = map(int, match.groups())
         # HIDIVE only has m/d/y, not hh:mm
         episode_day = datetime(day=day, month=month, year=year)
-        date_diff = datetime.utcnow() - episode_day
+        date_diff = datetime.now(UTC).replace(tzinfo=None) - episode_day
         if date_diff >= timedelta(days=2):
             logger.debug("  Episode too old")
             return None
@@ -174,6 +174,6 @@ def _preprocess_episode(feed_episode: Tag) -> Episode | None:
         logger.warning("  Episode title not found")
         name = ""
 
-    date = datetime.utcnow()  # Not included in stream !
+    date = datetime.now(UTC).replace(tzinfo=None)  # Not included in stream !
 
     return Episode(number=num, name=name, link=episode_link, date=date)

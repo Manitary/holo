@@ -3,7 +3,7 @@
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Iterable
 from urllib.parse import quote_plus as url_quote
 
@@ -194,7 +194,7 @@ def _is_valid_episode(feed_episode) -> bool:
         logger.debug("  Excluded")
         return False
     episode_date = datetime(*feed_episode.published_parsed[:6])
-    date_diff = datetime.utcnow() - episode_date
+    date_diff = datetime.now(UTC).replace(tzinfo=None) - episode_date
     if date_diff >= timedelta(days=2):
         logger.debug("  Episode too old")
         return False
@@ -211,7 +211,7 @@ def _digest_episode(feed_episode) -> Episode | None:
     episode_num = _extract_episode_num(title)
     if episode_num is not None:
         logger.debug("  Match found, num=%d", episode_num)
-        date = feed_episode["published_parsed"] or datetime.utcnow()
+        date = feed_episode["published_parsed"] or datetime.now(UTC).replace(tzinfo=None)
         link: str = feed_episode["id"]
         return Episode(number=episode_num, link=link, date=date)
     logger.debug("  No match found")
