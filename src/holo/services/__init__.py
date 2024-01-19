@@ -4,7 +4,7 @@ import importlib
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from functools import lru_cache, wraps
 from json import JSONDecodeError
@@ -250,7 +250,7 @@ class AbstractServiceHandler(BaseHandler, Requestable, ABC):
         """
         episodes = self.get_all_episodes(stream, **kwargs)
         today = (
-            datetime.utcnow().date()
+            datetime.now(UTC).replace(tzinfo=None).date()
         )  # NOTE: Uses local time instead of UTC, but probably doesn't matter too much on a day scale
         return filter(
             lambda e: e.date and e.date.date() <= today, episodes

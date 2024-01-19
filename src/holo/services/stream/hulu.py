@@ -6,6 +6,7 @@ Information as of 2023/06/05:
 The URL is of the form ``https://www.hulu.com/series/show_key``
 where ``show_key`` is like ``title-with-dashes-followed-by-entity-id``
 where ``entity-id`` is 5 'hashes' joined by dashes
+
 Example:
 show name: Tengoku Daimakyou
 show key: tengoku-daimakyo-c0bba144-1fa6-4ee5-affc-1029c77cfb71
@@ -74,8 +75,8 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import UTC, datetime, timedelta
+from typing import Any, override
 
 from ...data.models import Episode, Stream, UnprocessedStream
 from .. import AbstractServiceHandler
@@ -86,7 +87,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class HuluEpisode:
     name: str = ""
-    date: datetime = datetime.utcnow()
+    date: datetime = datetime.now(UTC).replace(tzinfo=None)
     season: int = 0
     number: int = 0
     series_name: str = ""
@@ -98,11 +99,12 @@ class InvalidHulu(Exception):
 
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "http://hulu.com/series/{id}"
-    _show_re = re.compile(r"hulu\.com\/series\/((?:\w+-?)+)", re.I)
+    _show_re = re.compile(r"hulu\.com/series/((?:\w+-?)+)", re.I)
 
     def __init__(self) -> None:
         super().__init__(key="hulu", name="Hulu", is_generic=False)
 
+    @override
     def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
         logger.info("Getting live episodes for Hulu/%s", stream.show_key)
         url = self.get_stream_link(stream=stream)
@@ -132,18 +134,21 @@ class ServiceHandler(AbstractServiceHandler):
         logger.debug("  %d episodes found, %d valid", len(episodes_data), len(episodes))
         return episodes
 
+    @override
     def get_stream_link(self, stream: Stream) -> str | None:
         if not stream.show_key:
             logger.warning("Missing show key from stream %s", stream)
             return None
         return self._show_url.format(id=stream.show_key)
 
+    @override
     def extract_show_key(self, url: str) -> str | None:
         match = self._show_re.search(url)
         if match:
             return match.group(1)
         return None
 
+    @override
     def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
         logger.info("Getting stream info for Hulu/%s", stream.show_key)
         url = self.get_stream_link(stream)
@@ -164,11 +169,12 @@ class ServiceHandler(AbstractServiceHandler):
             TypeError,
             AttributeError,
         ):
-            logger.error("Cannot extract malformed content")
+            logger.error("Cannot parse malformed content")
             return None
         stream.name = stream_name
         return stream
 
+    @override
     def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
         # Not implemented
         return []
@@ -178,7 +184,9 @@ def _get_json_data(raw_html: str) -> Any:
     pattern = r"<script id=\"__NEXT_DATA__\" type=\"application\/json\">(.+?)<\/script>"
     contents = re.findall(pattern, raw_html)
     if not contents:
-        raise InvalidHulu
+        raise InvalidHulu(
+            "Script pattern not found. Check that Hulu did not update the page structure."
+        )
     if len(contents) > 1:
         logger.warning(
             "Multiple matches found, may have unexpected results. The first match will be used."
@@ -193,7 +201,9 @@ def _extract_series_name_from_json(json_contents: Any) -> str:
     components = json_contents["props"]["pageProps"]["layout"]["components"]
     head = next((c for c in components if c["type"] == "detailentity_masthead"), None)
     if not head:
-        raise InvalidHulu
+        raise InvalidHulu(
+            "Cannot extract series name. Check that Hulu did not update the page structure."
+        )
     return head["title"]
 
 
@@ -213,13 +223,10 @@ def _get_episodes_data(contents_json: Any) -> list[HuluEpisode]:
         episode_container,
     )
     if not episode_container:
-        raise InvalidHulu
-    episodes = list(
-        filter(
-            None,
-            [_format_episode_from_json(episode) for episode in episode_container],
+        raise InvalidHulu(
+            "Episode container not found. Check that Hulu did not update the page structure"
         )
-    )
+    episodes = list(filter(None, map(_format_episode_from_json, episode_container)))
     return episodes
 
 
@@ -232,7 +239,7 @@ def _format_episode_from_json(episode_json: dict[str, str]) -> HuluEpisode | Non
     if name.lower().startswith("(dub)"):
         return None
     if name.lower().startswith("(sub)"):
-        name = name[6:]
+        name = name[5:].strip()
     formatted_episode = HuluEpisode(
         name=name,
         date=datetime.fromisoformat(date).replace(tzinfo=None),
@@ -255,7 +262,7 @@ _time_adjustments = {
 def _is_valid_episode(episode: HuluEpisode) -> bool:
     # Adjust time if needed, so the episode is not released too early
     episode.date += _time_adjustments.get(episode.series_name, timedelta(0))
-    date_diff = datetime.utcnow() - episode.date
+    date_diff = datetime.now(UTC).replace(tzinfo=None) - episode.date
     if date_diff >= timedelta(days=2):
         logger.debug("  Episode S%dE%d too old", episode.season, episode.number)
         return False
