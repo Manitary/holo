@@ -48,12 +48,6 @@ def living_in(the_database: str) -> DatabaseDatabase | None:
         logger.error("Failed to open database, %s", the_database)
         return None
 
-
-def dict_factory(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict[str, Any]:
-    fields = [column[0] for column in cursor.description]
-    return dict(zip(fields, row))
-
-
 def get_query(query_name: str) -> str:
     path = QUERY_PATH / f"{query_name}.sql"
     with path.open() as f:
@@ -100,7 +94,7 @@ def db_error_default(
 class DatabaseDatabase(sqlite3.Connection):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.row_factory = dict_factory
+        self.row_factory = sqlite3.Row
         self.execute("PRAGMA foreign_keys=ON")
         self.create_collation("alphanum", _collate_alphanum)
 
@@ -916,13 +910,12 @@ class DatabaseDatabase(sqlite3.Connection):
         return shows
 
     def _make_stream_from_query(self, row: dict[str, Any]) -> Stream | None:
-        show_id = row.get("show", None)
+        show_id: int = row["show"]
         show = self.get_show(show_id)
         if not show:
             logger.debug("Could not get show %s from stream", show_id)
             return None
-        row["show"] = show
-        return Stream(**row)
+        return Stream(**(dict(row) | {"show": show}))
 
     def _make_show_from_query(self, row: dict[str, Any]) -> Show:
         show = Show(**row)
