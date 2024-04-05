@@ -179,7 +179,7 @@ def _is_valid_episode(feed_episode, show_id):
 	return True
 
 _episode_name_correct = re.compile("Episode \d+ - (.*)")
-_episode_count_fix = re.compile("([0-9]+)[abc]?", re.I)
+_episode_count_fix = re.compile(r"([0-9]+)[abc]?(?!\.|\d)", re.I)
 
 def _digest_episode(feed_episode):
 	debug("Digesting episode")
