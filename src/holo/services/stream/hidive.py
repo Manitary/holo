@@ -84,19 +84,20 @@ class ServiceHandler(AbstractServiceHandler):
         if not url:
             logger.error("Cannot get url from show key")
             return None
-        response: BeautifulSoup | None = self.request_html(url, **kwargs)
-        if not response:
+
+        real_page = _load_real_page(stream.show_key)
+        if not real_page:
             logger.error("Cannot get feed")
             return None
 
-        title_section = response.find("div", {"class": "episodes"})
-        if not title_section:
+        try:
+            title = real_page["elements"][0]["attributes"]["header"]["attributes"][
+                "text"
+            ]
+        except (KeyError, IndexError):
             logger.error("Could not extract title")
             return None
-        if not (isinstance(title_section, Tag) and title_section.h1):
-            logger.error("Could not extract title")
-            return None
-        stream.name = title_section.h1.text
+        stream.name = title
         return stream
 
     def get_seasonal_streams(self, **kwargs: Any) -> list[UnprocessedStream]:
