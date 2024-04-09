@@ -247,7 +247,7 @@ _num_extractors = [
         r"\[ember\] .+ s(?:\d+)e(\d+)",
         r"(?:.+).S(?:\d+)E(\d+).Laelaps.Calling.(?:\d+)p.(?:.+)",
         r"\[(?:SenritsuSubs|AtlasSubbed|Rakushun)\] .+ - (\d+)",
-        r".+[\.\s\_](?:S|season[\s\.\_]?)\d+[\.\s\_\|]?(?:E|episode[\s\.\_]?)(\d+)[v\W]",  # (S01)E12 format
+        r".+\Ws(?:eason)?[\s.]?\d+[\s.]?e(?:pisode)?[\s.]?(\d+)",  # SxxEyy format (allow s/season, e/episode, ./space separation
         # S/season, E/episode, allow ./_/space separation, non-word ending to avoid e.g. S01E12v2
         r"\[.*?\][ _][^\(\[]+[ _](?:-[ _])?(\d+)[ _]",  # Generic to make a best guess.
         # Does not include . separation due to the common "XXX vol.01" format
