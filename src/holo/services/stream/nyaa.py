@@ -211,7 +211,9 @@ def _digest_episode(feed_episode) -> Episode | None:
     episode_num = _extract_episode_num(title)
     if episode_num is not None:
         logger.debug("  Match found, num=%d", episode_num)
-        date = feed_episode["published_parsed"] or datetime.now(UTC).replace(tzinfo=None)
+        date = feed_episode["published_parsed"] or datetime.now(UTC).replace(
+            tzinfo=None
+        )
         link: str = feed_episode["id"]
         return Episode(number=episode_num, link=link, date=date)
     logger.debug("  No match found")

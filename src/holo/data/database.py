@@ -48,6 +48,7 @@ def living_in(the_database: str) -> DatabaseDatabase | None:
         logger.error("Failed to open database, %s", the_database)
         return None
 
+
 def get_query(query_name: str) -> str:
     path = QUERY_PATH / f"{query_name}.sql"
     with path.open() as f:
