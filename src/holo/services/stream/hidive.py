@@ -1,8 +1,10 @@
+import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import requests
 from bs4 import BeautifulSoup, Tag
 
 from ...data.models import Episode, Stream, UnprocessedStream
@@ -177,3 +179,37 @@ def _preprocess_episode(feed_episode: Tag) -> Episode | None:
     date = datetime.now(UTC).replace(tzinfo=None)  # Not included in stream !
 
     return Episode(number=num, name=name, link=episode_link, date=date)
+
+
+def _load_real_page(show_id: int | str):
+    base_url = f"https://www.hidive.com/season/{show_id}"
+    r = requests.get(base_url, timeout=60)
+    if not r.ok:
+        logger.error("Couldn't fetch show landing page. Status code: %s", r.status_code)
+        return
+    json_path = re.findall(r"src=\"(.*?/\d+\.js)\"", r.text)[-1]
+    js_url = f"https://www.hidive.com{json_path}"
+    r2 = requests.get(js_url, timeout=60)
+    api_key = re.findall(r"API_KEY:\"(.*?)\"", r2.text)[0]
+    auth_url = "https://dce-frontoffice.imggaming.com/api/v1/init/?lk=language&pk=subTitleLanguage&pk=audioLanguage&pk=autoAdvance&pk=pluginAccessTokens&readLicences=true"
+    r3 = requests.get(
+        auth_url,
+        headers={"Origin": "https://www.hidive.com", "X-Api-Key": api_key},
+        timeout=60,
+    )
+    auth_token = re.findall(r"authorisationToken\":\"(.*?)\"", r3.text)[0]
+    true_url = (
+        f"https://dce-frontoffice.imggaming.com/api/v1/view?type=season&id={show_id}"
+    )
+    r4 = requests.get(
+        true_url,
+        headers={
+            "Realm": "dce.hidive",
+            "Authorization": f"Bearer {auth_token}",
+            "X-Api-Key": api_key,
+        },
+        timeout=60,
+    )
+    true_page = r4.text
+    j = json.loads(true_page)
+    return j
