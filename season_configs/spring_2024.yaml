@@ -408,7 +408,7 @@ info:
     official: "https://totokami.com/"
     subreddit: ""
 streams:
-    crunchyroll: ""
+    crunchyroll: "https://www.crunchyroll.com/mysterious-disappearances"
     museasia: ""
     anione: ""
     funimation|Funimation: ""
@@ -911,7 +911,7 @@ info:
     official: "https://seiyuradio-anime.com/"
     subreddit: "/r/SeiyuuRadioUraomote"
 streams:
-    crunchyroll: ""
+    crunchyroll: "https://www.crunchyroll.com/the-many-sides-of-voice-actor-radio"
     museasia: ""
     anione: ""
     funimation|Funimation: ""
