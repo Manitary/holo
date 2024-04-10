@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 import re
@@ -5,7 +6,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import requests
-from bs4 import BeautifulSoup, Tag
 
 from ...data.models import Episode, Stream, UnprocessedStream
 from .. import AbstractServiceHandler
@@ -13,18 +13,29 @@ from .. import AbstractServiceHandler
 logger = logging.getLogger(__name__)
 
 
+class HiDiveError(Exception):
+    def __init__(self, message: str, *args: object) -> None:
+        super().__init__(*args)
+        self.message = message
+
+
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "https://www.hidive.com/season/{id}"
     _show_re = re.compile(r"hidive.com/season/(\d+)", re.I)
+    _episode_url = "https://www.hidive.com/interstitial/{id}"
+    _episode_re = re.compile(r"https://www.hidive.com/interstitial/(\d+)")
     _date_re = re.compile(r"Premiere: (\d+)/(\d+)/(\d+)")
+    # Only process episodes with episode number
+    # formatted like E1 or E1.00 (sic)
+    _episode_title_re = re.compile(r"E(\d+)(?:\.00)? - (.*)")
+    # The title of unreleased episodes is "Coming m/d/y hh:mm UTC", we leave some leeway
+    _episode_title_unreleased_re = re.compile(r"Coming \d+/\d+/\d+.*")
 
     def __init__(self) -> None:
         super().__init__(key="hidive", name="HIDIVE", is_generic=False)
 
-    # Episode finding
-
     def get_all_episodes(self, stream: Stream, **kwargs: Any) -> list[Episode]:
-        logger.info("Getting live episodes for HiDive/%s", stream.show_key)
+        logger.info("Getting live episodes for %s/%s", self.key, stream.show_key)
 
         episode_datas = self._get_feed_episodes(stream.show_key, **kwargs)
 
@@ -35,7 +46,7 @@ class ServiceHandler(AbstractServiceHandler):
         # (Assumption: all new episodes have increasing numbers)
         # This is to reduce the number of requests to make
         episodes_candidates = sorted(
-            list(filter(None, map(_preprocess_episode, episode_datas))),
+            list(filter(None, map(self._preprocess_episode, episode_datas))),
             key=lambda e: e.number,
             reverse=True,
         )
@@ -43,10 +54,10 @@ class ServiceHandler(AbstractServiceHandler):
         episodes: list[Episode] = []
         for episode in episodes_candidates:
             try:
-                if episode := self.validate_episode(
+                if validated_episode := self.validate_episode(
                     episode=episode, show_key=stream.show_key, **kwargs
                 ):
-                    episodes.append(episode)
+                    episodes.append(validated_episode)
                 else:
                     break
             except Exception:
@@ -59,11 +70,11 @@ class ServiceHandler(AbstractServiceHandler):
         return episodes
 
     def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[dict[str, Any]]:
-        logger.info("Getting episodes for HiDive/%s", show_key)
+        logger.info("Getting episodes for %s/%s", self.key, show_key)
 
-        data = _load_real_page(show_key)
+        data = _load_anime_data(show_key)
         if not data:
-            logger.error("Cannot get show page for HiDive/%s", show_key)
+            logger.error("Cannot get show page for %s/%s", self.key, show_key)
             return []
 
         episodes = data["elements"][2]["attributes"]["items"]
@@ -78,20 +89,16 @@ class ServiceHandler(AbstractServiceHandler):
     # Remove info getting
 
     def get_stream_info(self, stream: Stream, **kwargs: Any) -> Stream | None:
-        logger.info("Getting stream info for HiDive/%s", stream.show_key)
+        # TODO document better?
+        logger.info("Getting stream info for %s/%s", self.key, stream.show_key)
 
-        url = self._get_feed_url(stream.show_key)
-        if not url:
-            logger.error("Cannot get url from show key")
-            return None
-
-        real_page = _load_real_page(stream.show_key)
-        if not real_page:
+        anime_data = _load_anime_data(stream.show_key)
+        if not anime_data:
             logger.error("Cannot get feed")
             return None
 
         try:
-            title = real_page["elements"][0]["attributes"]["header"]["attributes"][
+            title = anime_data["elements"][0]["attributes"]["header"]["attributes"][
                 "text"
             ]
         except (KeyError, IndexError):
@@ -115,24 +122,33 @@ class ServiceHandler(AbstractServiceHandler):
     def validate_episode(
         self, episode: Episode, show_key: str, **kwargs: Any
     ) -> Episode | None:
-        episode_id = re.match(
-            r"https://www.hidive.com/interstitial/(\d+)", episode.link
-        )
+        # TODO document better?
+        episode_id = self._episode_re.match(episode.link)
         if not episode_id:
-            logger.error("Invalid ep id parsing")
+            logger.error("Invalid episode id parsing")
             return None
-        data = _load_episode_page(episode_id.group(1))
-        if not data:
+
+        episode_data = _load_episode_data(episode_id.group(1))
+        if not episode_data:
             logger.error("Invalid episode link for show %s/%s", self.key, show_key)
             return None
 
-        content = data["elements"][0]["attributes"]["content"]
-        content_elt = next((c for c in content if c["$type"] == "tagList"))
-        tags = content_elt["attributes"]["tags"]
-        date_tag = next(
-            (t for t in tags if t["attributes"]["text"].startswith("Original Premiere"))
-        )
-        date_data = date_tag["attributes"]["text"]
+        try:
+            content = episode_data["elements"][0]["attributes"]["content"]
+            content_elt = next((c for c in content if c["$type"] == "tagList"))
+            tags = content_elt["attributes"]["tags"]
+            date_tag = next(
+                (
+                    t
+                    for t in tags
+                    if t["attributes"]["text"].startswith("Original Premiere")
+                )
+            )
+            date_data = date_tag["attributes"]["text"]
+        except (IndexError, KeyError, StopIteration):
+            logger.error("Could not retrieve episode date: malformed episode data")
+            return episode
+
         date_text = re.match(r"Original Premiere: (.*)", date_data)
         if not date_text:
             logger.error("Invalid date text: %s", date_data)
@@ -148,90 +164,127 @@ class ServiceHandler(AbstractServiceHandler):
         episode.date = episode_day
         return episode
 
+    def _preprocess_episode(self, feed_episode: dict[str, Any]) -> Episode | None:
+        # TODO document better?
+        logger.debug("Pre-processing episode")
 
-def _preprocess_episode(feed_episode: dict[str, Any]) -> Episode | None:
-    logger.debug("Pre-processing episode")
+        episode_link = self._episode_url.format(id=feed_episode["id"])
 
-    episode_link = f"https://www.hidive.com/interstitial/{feed_episode['id']}"
+        title_match = self._episode_title_re.match(feed_episode["title"])
+        if not title_match:
+            logger.warning("Unknown episode number format in %s", episode_link)
+            return None
 
-    title_match = re.match(r"E(\d+)(?:\.00)? - (.*)", feed_episode["title"])
-    if not title_match:
-        logger.warning("Unknown episode number format in %s", episode_link)
+        num, name = title_match.groups()
+        num = int(num)
+        if num == 0:
+            logger.warning("Excluding episode numbered 0: %s", episode_link)
+            return None
+
+        unreleased = self._episode_title_unreleased_re.match(name)
+        if unreleased:
+            logger.debug("Excluding unreleased episode: %s", episode_link)
+            return None
+
+        date = datetime.now(UTC).replace(tzinfo=None)  # Not included in stream!
+
+        return Episode(number=num, name=name, link=episode_link, date=date)
+
+
+# With the update in March 2024,
+# HiDive doesn't serve pages directly, but returns a bunch of javascript
+# that executes further requests to get the page contents
+
+# The following functions execute the relevant requests
+# without having to emulating a web browser
+# the resulting content is returned in a JSON format
+
+
+def _load_page_data(
+    element_id: int | str, base_url: str, content_url: str
+) -> Any | None:
+    try:
+        js_path = _get_js_path(element_id, base_url)
+        api_key = _get_api_key(js_path)
+        auth_token = _get_auth_token(api_key)
+        contents = _get_content_json(element_id, auth_token, api_key, content_url)
+    except HiDiveError as e:
+        logger.error(e.message)
         return None
-
-    num, name = title_match.groups()
-    num = int(num)
-    if num == 0:
-        logger.warning("Excluding episode numbered 0: %s", episode_link)
-        return None
-    unreleased = re.match(r"Coming \d+/\d+/\d+ .*", name)
-    if unreleased:
-        logger.debug("Excluding unreleased episode: %s", episode_link)
-        return None
-
-    date = datetime.now(UTC).replace(tzinfo=None)  # Not included in stream !
-
-    return Episode(number=num, name=name, link=episode_link, date=date)
+    return contents
 
 
-def _load_real_page(show_id: int | str):
-    base_url = f"https://www.hidive.com/season/{show_id}"
-    r = requests.get(base_url, timeout=60)
+_load_anime_data = functools.partial(
+    _load_page_data,
+    base_url="https://www.hidive.com/season/{}",
+    content_url="https://dce-frontoffice.imggaming.com/api/v1/view?type=season&id={}",
+)
+
+_load_episode_data = functools.partial(
+    _load_page_data,
+    base_url="https://www.hidive.com/interstitial/{}",
+    content_url="https://dce-frontoffice.imggaming.com/api/v1/view?type=VOD&id={}",
+)
+
+
+_re_js = re.compile(r"<script defer=\"defer\" src=\"(.*?/\d+\.js)\"></script>")
+_re_api_key = re.compile(r"API_KEY:\"(.*?)\"")
+_re_auth_token = re.compile(r"authorisationToken\":\"(.*?)\"")
+
+
+def _get_js_path(element_id: int | str, base_url: str) -> str:
+    url = base_url.format(element_id)
+    logger.debug("Fetching landing page: %s", url)
+    r = requests.get(url, timeout=60)
     if not r.ok:
-        logger.error("Couldn't fetch show landing page. Status code: %s", r.status_code)
-        return
-    json_path = re.findall(r"src=\"(.*?/\d+\.js)\"", r.text)[-1]
-    js_url = f"https://www.hidive.com{json_path}"
-    r2 = requests.get(js_url, timeout=60)
-    api_key = re.findall(r"API_KEY:\"(.*?)\"", r2.text)[0]
-    auth_url = "https://dce-frontoffice.imggaming.com/api/v1/init/?lk=language&pk=subTitleLanguage&pk=audioLanguage&pk=autoAdvance&pk=pluginAccessTokens&readLicences=true"
-    r3 = requests.get(
-        auth_url,
-        headers={"Origin": "https://www.hidive.com", "X-Api-Key": api_key},
-        timeout=60,
-    )
-    auth_token = re.findall(r"authorisationToken\":\"(.*?)\"", r3.text)[0]
-    true_url = (
-        f"https://dce-frontoffice.imggaming.com/api/v1/view?type=season&id={show_id}"
-    )
-    r4 = requests.get(
-        true_url,
-        headers={
-            "Realm": "dce.hidive",
-            "Authorization": f"Bearer {auth_token}",
-            "X-Api-Key": api_key,
-        },
-        timeout=60,
-    )
-    true_page = r4.text
-    j = json.loads(true_page)
-    return j
+        raise HiDiveError(f"Couldn't fetch landing page. Status code: {r.status_code}")
+    json_path = _re_js.findall(r.text)[-1]
+    if not json_path:
+        raise HiDiveError(f"Couldn't find the JS path on the page: {url}")
+    return json_path
 
 
-def _load_episode_page(episode_id: int | str):
-    base_url = f"https://www.hidive.com/interstitial/{episode_id}"
-    r = requests.get(base_url, timeout=60)
+def _get_api_key(js_path: str) -> str:
+    url = f"https://www.hidive.com{js_path}"
+    logger.debug("Retrieving API key: %s", url)
+    r = requests.get(url, timeout=60)
     if not r.ok:
-        logger.error(
-            "Couldn't fetch episode landing page. Status code: %s", r.status_code
+        raise HiDiveError(
+            f"Failed to request the page containing the API key: {url} - "
+            f"Status code: {r.status_code}"
         )
-        return
-    json_path = re.findall(r"src=\"(.*?/\d+\.js)\"", r.text)[-1]
-    js_url = f"https://www.hidive.com{json_path}"
-    r2 = requests.get(js_url, timeout=60)
-    api_key = re.findall(r"API_KEY:\"(.*?)\"", r2.text)[0]
-    auth_url = "https://dce-frontoffice.imggaming.com/api/v1/init/?lk=language&pk=subTitleLanguage&pk=audioLanguage&pk=autoAdvance&pk=pluginAccessTokens&readLicences=true"
-    r3 = requests.get(
-        auth_url,
+    match = _re_api_key.search(r.text)
+    if not match:
+        raise HiDiveError(f"Failed to find the API key in the page: {url}")
+    return match.group(1)
+
+
+def _get_auth_token(api_key: str) -> str:
+    url = "https://dce-frontoffice.imggaming.com/api/v1/init/"
+    logger.debug("Obtaining auth token using the provided API key: %s", url)
+    r = requests.get(
+        url,
         headers={"Origin": "https://www.hidive.com", "X-Api-Key": api_key},
         timeout=60,
     )
-    auth_token = re.findall(r"authorisationToken\":\"(.*?)\"", r3.text)[0]
-    true_url = (
-        f"https://dce-frontoffice.imggaming.com/api/v1/view?type=VOD&id={episode_id}"
-    )
-    r4 = requests.get(
-        true_url,
+    if not r.ok:
+        raise HiDiveError(
+            f"Failed to request the page containing the auth token: {url} - "
+            f"Status code: {r.status_code}"
+        )
+    match = _re_auth_token.search(r.text)
+    if not match:
+        raise HiDiveError(f"Failed to find the auth token in the page: {url}")
+    return match.group(1)
+
+
+def _get_content_json(
+    element_id: int | str, auth_token: str, api_key: str, content_url: str
+) -> Any:
+    url = content_url.format(element_id)
+    logger.debug("Retrieving page JSON data")
+    r = requests.get(
+        url,
         headers={
             "Realm": "dce.hidive",
             "Authorization": f"Bearer {auth_token}",
@@ -239,6 +292,14 @@ def _load_episode_page(episode_id: int | str):
         },
         timeout=60,
     )
-    true_page = r4.text
-    j = json.loads(true_page)
+    if not r.ok:
+        raise HiDiveError(
+            f"Failed to request the content page: {url} - Status code: {r.status_code}"
+        )
+    try:
+        j = json.loads(r.text)
+    except json.JSONDecodeError as e:
+        raise HiDiveError(
+            f"Failed to decode the content page as valid JSON: {url}"
+        ) from e
     return j
