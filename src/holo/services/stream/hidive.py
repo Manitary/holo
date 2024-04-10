@@ -43,7 +43,7 @@ class ServiceHandler(AbstractServiceHandler):
         episodes: list[Episode] = []
         for episode in episodes_candidates:
             try:
-                if episode := self._is_valid_episode(
+                if episode := self.validate_episode(
                     episode=episode, show_key=stream.show_key, **kwargs
                 ):
                     episodes.append(episode)
@@ -51,23 +51,23 @@ class ServiceHandler(AbstractServiceHandler):
                     break
             except Exception:
                 logger.exception(
-                    "Problem digesting episode for HiDive/%s", stream.show_key
+                    "Problem digesting episode for HiDive/%s: %s",
+                    stream.show_key,
+                    episode.link,
                 )
         logger.debug("  %d episodes found, %d valid", len(episode_datas), len(episodes))
         return episodes
 
-    def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[Tag]:
+    def _get_feed_episodes(self, show_key: str, **kwargs: Any) -> list[dict[str, Any]]:
         logger.info("Getting episodes for HiDive/%s", show_key)
 
-        url = self._get_feed_url(show_key)
-
-        response: BeautifulSoup | None = self.request_html(url=url, **kwargs)
-        if not response:
+        data = _load_real_page(show_key)
+        if not data:
             logger.error("Cannot get show page for HiDive/%s", show_key)
             return []
 
-        sections = response.find_all("div", {"data-section": "episodes"})
-        return sections
+        episodes = data["elements"][2]["attributes"]["items"]
+        return episodes
 
     @classmethod
     def _get_feed_url(cls, show_key: str) -> str:
@@ -112,20 +112,35 @@ class ServiceHandler(AbstractServiceHandler):
             return match.group(1)
         return None
 
-    def _is_valid_episode(
+    def validate_episode(
         self, episode: Episode, show_key: str, **kwargs: Any
     ) -> Episode | None:
-        # Possibly other cases to watch ?
-        response = self.request_html(url=episode.link, **kwargs)
-        if not response:
+        episode_id = re.match(
+            r"https://www.hidive.com/interstitial/(\d+)", episode.link
+        )
+        if not episode_id:
+            logger.error("Invalid ep id parsing")
+            return None
+        data = _load_episode_page(episode_id.group(1))
+        if not data:
             logger.error("Invalid episode link for show %s/%s", self.key, show_key)
             return None
-        if not (match := self._date_re.search(str(response.h2 or ""))):
-            logger.warning("Date not found")
+
+        content = data["elements"][0]["attributes"]["content"]
+        content_elt = next((c for c in content if c["$type"] == "tagList"))
+        tags = content_elt["attributes"]["tags"]
+        date_tag = next(
+            (t for t in tags if t["attributes"]["text"].startswith("Original Premiere"))
+        )
+        date_data = date_tag["attributes"]["text"]
+        date_text = re.match(r"Original Premiere: (.*)", date_data)
+        if not date_text:
+            logger.error("Invalid date text: %s", date_data)
             return episode
-        month, day, year = map(int, match.groups())
+        date = datetime.strptime(date_text.group(1), "%B %d, %Y")
+
         # HIDIVE only has m/d/y, not hh:mm
-        episode_day = datetime(day=day, month=month, year=year)
+        episode_day = datetime(day=date.day, month=date.month, year=date.year)
         date_diff = datetime.now(UTC).replace(tzinfo=None) - episode_day
         if date_diff >= timedelta(days=2):
             logger.debug("  Episode too old")
@@ -134,48 +149,25 @@ class ServiceHandler(AbstractServiceHandler):
         return episode
 
 
-_episode_re = re.compile(
-    r"(?:https://www.hidive.com)?/stream/[\w-]+/s\d{2}e(\d{3})", re.I
-)
-_episode_re_alter = re.compile(
-    r"(?:https://www.hidive.com)?/stream/[\w-]+/\d{4}\d{2}\d{2}(\d{2})", re.I
-)
-_episode_name_correct = re.compile(r"(?:E\d+|Shorts) ?\| ?(.*)")
-_episode_name_invalid = re.compile(r".*coming soon.*", re.I)
-_episode_link = "https://www.hidive.com{href}"
-
-
-def _preprocess_episode(feed_episode: Tag) -> Episode | None:
+def _preprocess_episode(feed_episode: dict[str, Any]) -> Episode | None:
     logger.debug("Pre-processing episode")
-    if not feed_episode.a:
-        return None
-    episode_link = _episode_link.format(href=feed_episode.a["href"])
 
-    # Get data
-    num_match = _episode_re.match(episode_link)
-    num_match_alter = _episode_re_alter.match(episode_link)
-    if num_match:
-        num = int(num_match.group(1))
-    elif num_match_alter:
-        logger.warning("Using alternate episode key format")
-        num = int(num_match_alter.group(1))
-    else:
+    episode_link = f"https://www.hidive.com/interstitial/{feed_episode['id']}"
+
+    title_match = re.match(r"E(\d+)(?:\.00)? - (.*)", feed_episode["title"])
+    if not title_match:
         logger.warning("Unknown episode number format in %s", episode_link)
         return None
-    if num <= 0:
+
+    num, name = title_match.groups()
+    num = int(num)
+    if num == 0:
+        logger.warning("Excluding episode numbered 0: %s", episode_link)
         return None
-
-    if not feed_episode.h2:
-        name = ""
-    else:
-        name = feed_episode.h2.text
-
-    if name_match := _episode_name_correct.match(name):
-        logger.debug("  Corrected title from %s", name)
-        name = name_match.group(1)
-    if _episode_name_invalid.match(name):
-        logger.warning("  Episode title not found")
-        name = ""
+    unreleased = re.match(r"Coming \d+/\d+/\d+ .*", name)
+    if unreleased:
+        logger.debug("Excluding unreleased episode: %s", episode_link)
+        return None
 
     date = datetime.now(UTC).replace(tzinfo=None)  # Not included in stream !
 
@@ -201,6 +193,42 @@ def _load_real_page(show_id: int | str):
     auth_token = re.findall(r"authorisationToken\":\"(.*?)\"", r3.text)[0]
     true_url = (
         f"https://dce-frontoffice.imggaming.com/api/v1/view?type=season&id={show_id}"
+    )
+    r4 = requests.get(
+        true_url,
+        headers={
+            "Realm": "dce.hidive",
+            "Authorization": f"Bearer {auth_token}",
+            "X-Api-Key": api_key,
+        },
+        timeout=60,
+    )
+    true_page = r4.text
+    j = json.loads(true_page)
+    return j
+
+
+def _load_episode_page(episode_id: int | str):
+    base_url = f"https://www.hidive.com/interstitial/{episode_id}"
+    r = requests.get(base_url, timeout=60)
+    if not r.ok:
+        logger.error(
+            "Couldn't fetch episode landing page. Status code: %s", r.status_code
+        )
+        return
+    json_path = re.findall(r"src=\"(.*?/\d+\.js)\"", r.text)[-1]
+    js_url = f"https://www.hidive.com{json_path}"
+    r2 = requests.get(js_url, timeout=60)
+    api_key = re.findall(r"API_KEY:\"(.*?)\"", r2.text)[0]
+    auth_url = "https://dce-frontoffice.imggaming.com/api/v1/init/?lk=language&pk=subTitleLanguage&pk=audioLanguage&pk=autoAdvance&pk=pluginAccessTokens&readLicences=true"
+    r3 = requests.get(
+        auth_url,
+        headers={"Origin": "https://www.hidive.com", "X-Api-Key": api_key},
+        timeout=60,
+    )
+    auth_token = re.findall(r"authorisationToken\":\"(.*?)\"", r3.text)[0]
+    true_url = (
+        f"https://dce-frontoffice.imggaming.com/api/v1/view?type=VOD&id={episode_id}"
     )
     r4 = requests.get(
         true_url,
