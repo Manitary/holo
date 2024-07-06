@@ -29,7 +29,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-QUERY_PATH = Path() / "src" / "data"
+QUERY_PATH = Path() / "holo" / "data"
 
 P = ParamSpec("P")
 T = TypeVar("T")
