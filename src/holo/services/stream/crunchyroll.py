@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class ServiceHandler(AbstractServiceHandler):
     _show_url = "http://crunchyroll.com/{id}"
     _show_re = re.compile(r"crunchyroll.com/([\w-]+)", re.I)
-    _episode_rss = "http://crunchyroll.com/{id}.rss"
+    _episode_rss = "http://crunchyroll.com/{id}.rss?lang=en-us"
     _backup_rss = r"http://crunchyroll.com/rss/anime"
     _season_url = r"http://crunchyroll.com/lineup"
 
@@ -185,11 +185,11 @@ def _is_valid_episode(feed_episode: CrunchyrollEntry) -> bool:
         logger.debug("Is PV, ignoring")
         return False
     # Don't check really old episodes
-    episode_date = datetime(*feed_episode["published_parsed"][:6])
-    date_diff = datetime.now(UTC).replace(tzinfo=None) - episode_date
-    if date_diff >= timedelta(days=2):
-        logger.debug("  Episode too old")
-        return False
+    # episode_date = datetime(*feed_episode["published_parsed"][:6])
+    # date_diff = datetime.now(UTC).replace(tzinfo=None) - episode_date
+    # if date_diff >= timedelta(days=2):
+    #     logger.debug("  Episode too old")
+    #     return False
     return True
 
 
