@@ -6,7 +6,7 @@ config_secret.ini
 *.sqlite-backup
 *.sqlite.bkp*
 oauth_store.txt
-logs/
+logs*/
 
 
 # Created by https://www.gitignore.io/api/python,virtualenv
