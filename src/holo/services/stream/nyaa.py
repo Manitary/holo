@@ -228,7 +228,7 @@ _excludors = [
         r"\b(bd|bluray|bdrip)\b",
         r"PV.?\d+",
         r"pre-?air",
-        r"(blackjaxx|daddy|le m[eê]me)",  # blacklisted uploaders
+        r"(blackjaxx|daddy|le m[eê]me|Almighty)",  # blacklisted uploaders
     ]
 ]
 _num_extractors = [
